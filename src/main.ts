@@ -18,6 +18,8 @@ import { HallOfLegendsScene } from './scenes/HallOfLegendsScene';
 import { BloodlinePerksScene } from './scenes/BloodlinePerksScene';
 import { SettingsScene } from './scenes/SettingsScene';
 import { VignetteScene } from './scenes/VignetteScene';
+import { LetterScene } from './scenes/LetterScene';
+import { RelicChoiceScene } from './scenes/RelicChoiceScene';
 
 // Calculate game dimensions for mobile-first design
 const getGameConfig = (): Phaser.Types.Core.GameConfig => {
@@ -77,7 +79,9 @@ const getGameConfig = (): Phaser.Types.Core.GameConfig => {
       HallOfLegendsScene,
       BloodlinePerksScene,
       SettingsScene,
-      VignetteScene
+      VignetteScene,
+      LetterScene,
+      RelicChoiceScene
     ],
     physics: {
       default: 'arcade',

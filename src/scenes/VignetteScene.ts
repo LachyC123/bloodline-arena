@@ -250,12 +250,8 @@ export class VignetteScene extends Phaser.Scene {
       run.completedVignettes.push(this.vignette.id);
     }
     
-    // Handle letter writing specially
-    if (this.vignette.category === 'letter') {
-      const letterContent = `Week ${run.week + 1}: ${choice.resultText}`;
-      this.fighter.lettersWritten.push(letterContent);
-      run.lettersWritten.push(letterContent);
-    }
+    // Note: Letter writing is now handled by LetterScene
+    // Old vignette letters just add trust and are noted in completedVignettes
     
     // Save
     SaveSystem.updateRun({
