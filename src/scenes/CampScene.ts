@@ -497,10 +497,11 @@ export class CampScene extends Phaser.Scene {
   }
 
   private showCharacterInfo(): void {
-    UIHelper.showNotification(this, 
-      `${this.fighter.fullName}\nTrust: ${this.fighter.trust}% | Wins: ${this.fighter.wins}`, 
-      3000
-    );
+    // Open full character sheet
+    this.cameras.main.fadeOut(200);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.start('CharacterSheetScene');
+    });
   }
 
   private goToTraining(): void {
@@ -557,7 +558,8 @@ export class CampScene extends Phaser.Scene {
     
     this.cameras.main.fadeOut(300);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start('FightScene');
+      // Go to prepare screen first for loadout management
+      this.scene.start('PrepareScene');
     });
   }
 
