@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" fill="#1a1410"/>
+  
+  <!-- Decorative circle -->
+  <circle cx="256" cy="256" r="220" fill="none" stroke="#5a4a3a" stroke-width="8"/>
+  <circle cx="256" cy="256" r="200" fill="none" stroke="#c9a959" stroke-width="4"/>
+  
+  <!-- Crossed swords -->
+  <g fill="#c9a959">
+    <!-- Left sword -->
+    <rect x="120" y="180" width="16" height="180" transform="rotate(-30 128 270)"/>
+    <polygon points="128,140 116,180 140,180" transform="rotate(-30 128 160)"/>
+    <rect x="100" y="340" width="56" height="12" transform="rotate(-30 128 346)"/>
+    <rect x="118" y="350" width="20" height="50" transform="rotate(-30 128 375)"/>
+    
+    <!-- Right sword -->
+    <rect x="376" y="180" width="16" height="180" transform="rotate(30 384 270)"/>
+    <polygon points="384,140 372,180 396,180" transform="rotate(30 384 160)"/>
+    <rect x="356" y="340" width="56" height="12" transform="rotate(30 384 346)"/>
+    <rect x="374" y="350" width="20" height="50" transform="rotate(30 384 375)"/>
+  </g>
+  
+  <!-- Shield in center -->
+  <path d="M256,200 L310,230 L300,330 L256,360 L212,330 L202,230 Z" fill="#3a2a1a" stroke="#c9a959" stroke-width="4"/>
+  <circle cx="256" cy="280" r="30" fill="#c9a959"/>
+  <circle cx="256" cy="280" r="20" fill="#8b0000"/>
+  
+  <!-- Text banner -->
+  <rect x="140" y="400" width="232" height="50" rx="8" fill="#2a1f1a" stroke="#c9a959" stroke-width="2"/>
+  <text x="256" y="433" font-family="Georgia, serif" font-size="24" fill="#c9a959" text-anchor="middle">BLOODLINE</text>
+</svg>
