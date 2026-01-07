@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Bloodline Arena">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#1a1410">
+  <meta name="description" content="A gritty medieval gladiator roguelite with permadeath and deep character attachment">
+  
+  <title>Bloodline Arena</title>
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="./manifest.json">
+  
+  <!-- Icons -->
+  <link rel="icon" type="image/svg+xml" href="./assets/icons/icon.svg">
+  <link rel="apple-touch-icon" href="./assets/icons/icon.svg">
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #1a1410;
+      touch-action: none;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    #game-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    
+    canvas {
+      display: block;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+    }
+    
+    /* Prevent pull-to-refresh on mobile */
+    body {
+      overscroll-behavior: none;
+    }
+    
+    /* Loading screen styles */
+    #loading-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(180deg, #1a1410 0%, #2a1f1a 50%, #1a1410 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      font-family: Georgia, 'Times New Roman', serif;
+    }
+    
+    #loading-screen.hidden {
+      display: none;
+    }
+    
+    #loading-title {
+      color: #c9a959;
+      font-size: 2.5rem;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+      margin-bottom: 2rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+    
+    #loading-subtitle {
+      color: #8b7355;
+      font-size: 1rem;
+      margin-bottom: 2rem;
+      font-style: italic;
+    }
+    
+    #loading-bar-container {
+      width: 300px;
+      max-width: 80%;
+      height: 20px;
+      background: #2a1f1a;
+      border: 2px solid #5a4a3a;
+      border-radius: 4px;
+      overflow: hidden;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+    }
+    
+    #loading-bar {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #8b4513, #c9a959);
+      transition: width 0.3s ease;
+    }
+    
+    #loading-text {
+      color: #8b7355;
+      font-size: 0.9rem;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading-screen">
+    <h1 id="loading-title">Bloodline Arena</h1>
+    <p id="loading-subtitle">Blood. Honor. Legacy.</p>
+    <div id="loading-bar-container">
+      <div id="loading-bar"></div>
+    </div>
+    <p id="loading-text">Loading...</p>
+  </div>
+  
+  <div id="game-container"></div>
+  
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>
