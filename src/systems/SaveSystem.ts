@@ -9,7 +9,7 @@ import { WrittenLetter } from '../data/LettersData';
 import { Relic } from '../data/RelicsData';
 
 // Current save version - increment when adding breaking changes
-const SAVE_VERSION = 2;
+const SAVE_VERSION = 3;
 
 // Save data structure
 export interface GameSettings {
@@ -43,20 +43,29 @@ export interface RunState {
   lastCampAction: string | null;
   inProgress: boolean;
   
-  // New: Relics for this run
+  // Relics for this run
   relics: string[];  // Relic IDs
   relicPityCounter: number;
   
-  // New: Run modifiers (daily oath)
+  // Run modifiers (daily oath)
   activeModifiers: string[];
   
-  // New: Milestone tracking
+  // Milestone tracking
   fightsSinceRelic: number;
   consecutiveWins: number;
   
   // Debt system (from patron letters)
   debt: number;
   debtFightsRemaining: number;
+  
+  // Training system
+  fatigue: number;  // 0-100
+  techniques: Record<string, number>;  // technique ID -> level
+  sparringInjuries: string[];  // temporary training injuries
+  
+  // Seals (letter currency for this run)
+  seals: number;
+  savedLetters: string[];  // Letter IDs that can be read before fights
 }
 
 export interface MetaProgression {
@@ -178,7 +187,12 @@ const DEFAULT_RUN: RunState = {
   fightsSinceRelic: 0,
   consecutiveWins: 0,
   debt: 0,
-  debtFightsRemaining: 0
+  debtFightsRemaining: 0,
+  fatigue: 0,
+  techniques: {},
+  sparringInjuries: [],
+  seals: 0,
+  savedLetters: []
 };
 
 const DEFAULT_META: MetaProgression = {
@@ -259,7 +273,14 @@ class SaveSystemClass {
         // Ensure arrays exist
         relics: saved.run?.relics || [],
         lettersWritten: saved.run?.lettersWritten || [],
-        activeModifiers: saved.run?.activeModifiers || []
+        activeModifiers: saved.run?.activeModifiers || [],
+        sparringInjuries: saved.run?.sparringInjuries || [],
+        savedLetters: saved.run?.savedLetters || [],
+        // Ensure objects exist
+        techniques: saved.run?.techniques || {},
+        // Ensure numbers exist
+        fatigue: saved.run?.fatigue || 0,
+        seals: saved.run?.seals || 0
       },
       meta: { 
         ...DEFAULT_META, 
@@ -319,6 +340,22 @@ class SaveSystemClass {
       }
       
       data.version = 2;
+    }
+    
+    // Version 2 -> 3: Add training system and seals
+    if (data.version === 2) {
+      console.log('Migrating v2 -> v3: Adding training system and seals');
+      
+      data.run = {
+        ...data.run,
+        fatigue: 0,
+        techniques: {},
+        sparringInjuries: [],
+        seals: 0,
+        savedLetters: []
+      };
+      
+      data.version = 3;
     }
     
     // Apply merged defaults and save
@@ -645,6 +682,91 @@ class SaveSystemClass {
    */
   getSaveVersion(): number {
     return this.data.version;
+  }
+
+  // Training system helpers
+  addFatigue(amount: number): void {
+    this.data.run.fatigue = Math.min(100, Math.max(0, this.data.run.fatigue + amount));
+    this.save();
+  }
+
+  reduceFatigue(amount: number): void {
+    this.data.run.fatigue = Math.max(0, this.data.run.fatigue - amount);
+    this.save();
+  }
+
+  getFatigue(): number {
+    return this.data.run.fatigue;
+  }
+
+  setTechniqueLevel(techniqueId: string, level: number): void {
+    this.data.run.techniques[techniqueId] = level;
+    this.save();
+  }
+
+  getTechniqueLevel(techniqueId: string): number {
+    return this.data.run.techniques[techniqueId] || 0;
+  }
+
+  getTechniques(): Record<string, number> {
+    return { ...this.data.run.techniques };
+  }
+
+  addSparringInjury(injuryId: string): void {
+    if (!this.data.run.sparringInjuries.includes(injuryId)) {
+      this.data.run.sparringInjuries.push(injuryId);
+      this.save();
+    }
+  }
+
+  clearSparringInjuries(): void {
+    this.data.run.sparringInjuries = [];
+    this.save();
+  }
+
+  getSparringInjuries(): string[] {
+    return [...this.data.run.sparringInjuries];
+  }
+
+  // Seals system
+  addSeals(amount: number): void {
+    this.data.run.seals += amount;
+    this.save();
+  }
+
+  spendSeals(amount: number): boolean {
+    if (this.data.run.seals >= amount) {
+      this.data.run.seals -= amount;
+      this.save();
+      return true;
+    }
+    return false;
+  }
+
+  getSeals(): number {
+    return this.data.run.seals;
+  }
+
+  // Saved letters for pre-fight buffs
+  saveLetter(letterId: string): void {
+    if (!this.data.run.savedLetters.includes(letterId)) {
+      this.data.run.savedLetters.push(letterId);
+      this.save();
+    }
+  }
+
+  useSavedLetter(letterId: string): boolean {
+    const index = this.data.run.savedLetters.indexOf(letterId);
+    if (index > -1) {
+      this.data.run.savedLetters.splice(index, 1);
+      this.save();
+      return true;
+    }
+    return false;
+  }
+
+  getSavedLetters(): string[] {
+    return [...this.data.run.savedLetters];
   }
 }
 

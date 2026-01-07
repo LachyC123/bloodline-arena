@@ -140,9 +140,17 @@ export class LetterScene extends Phaser.Scene {
       container.add(desc);
     });
     
-    // Letter stamps display
+    // Seals and stamps display
+    const seals = SaveSystem.getSeals();
     const stamps = SaveSystem.getLetterStamps();
-    this.add.text(width - 20, height - 30, `📜 Letter Stamps: ${stamps}`, {
+    
+    this.add.text(width - 20, height - 50, `🔵 Seals: ${seals}`, {
+      fontFamily: 'Georgia, serif',
+      fontSize: '11px',
+      color: '#4682b4'
+    }).setOrigin(1, 0.5);
+    
+    this.add.text(width - 20, height - 30, `📜 Stamps: ${stamps}`, {
       fontFamily: 'Georgia, serif',
       fontSize: '11px',
       color: '#8b7355'
@@ -438,14 +446,24 @@ export class LetterScene extends Phaser.Scene {
           }
           break;
         case 'letter_stamp':
+          // Letter stamps are meta currency
           SaveSystem.addLetterStamps(effect.value);
+          // Also add seals (run-specific currency)
+          SaveSystem.addSeals(effect.value);
           break;
         case 'debt':
           SaveSystem.addDebt(Math.abs(effect.value), 2);
           break;
+        case 'resolve':
+          // Resolve reduces fatigue
+          SaveSystem.reduceFatigue(15);
+          break;
         // Add more effect handlers as needed
       }
     });
+    
+    // Writing letters also reduces some fatigue (calming activity)
+    SaveSystem.reduceFatigue(15);
     
     // Apply trust
     if (trustChange !== 0) {
