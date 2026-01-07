@@ -20,6 +20,7 @@ import { SettingsScene } from './scenes/SettingsScene';
 import { VignetteScene } from './scenes/VignetteScene';
 import { LetterScene } from './scenes/LetterScene';
 import { RelicChoiceScene } from './scenes/RelicChoiceScene';
+import { TrainingScene } from './scenes/TrainingScene';
 
 // Calculate game dimensions for mobile-first design
 const getGameConfig = (): Phaser.Types.Core.GameConfig => {
@@ -81,7 +82,8 @@ const getGameConfig = (): Phaser.Types.Core.GameConfig => {
       SettingsScene,
       VignetteScene,
       LetterScene,
-      RelicChoiceScene
+      RelicChoiceScene,
+      TrainingScene
     ],
     physics: {
       default: 'arcade',
