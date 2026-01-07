@@ -73,7 +73,16 @@
       font-family: Georgia, 'Times New Roman', serif;
     }
     
+    #loading-screen {
+      transition: opacity 0.3s ease-out;
+    }
+    
     #loading-screen.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    
+    #loading-screen.removed {
       display: none;
     }
     
