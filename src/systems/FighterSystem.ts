@@ -14,7 +14,9 @@ export type StatusEffect =
   | 'fear' 
   | 'disarmed'
   | 'inspired'
-  | 'enraged';
+  | 'enraged'
+  | 'poison'
+  | 'armor_break';
 
 // Injury types
 export interface Injury {

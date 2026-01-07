@@ -495,11 +495,13 @@ export class TrainingScene extends Phaser.Scene {
     if (!run.fighter) return;
     
     // Apply stat changes
+    const appliedChanges: Record<string, number> = {};
     for (const [stat, value] of Object.entries(program.statChanges)) {
       if (typeof value === 'number') {
         const key = stat as keyof typeof run.fighter.currentStats;
         if (typeof run.fighter.currentStats[key] === 'number') {
           (run.fighter.currentStats[key] as number) += value;
+          appliedChanges[stat] = value;
         }
       }
     }
@@ -507,9 +509,21 @@ export class TrainingScene extends Phaser.Scene {
     // Level up technique
     const currentLevel = SaveSystem.getTechniqueLevel(program.techniqueId);
     const technique = getTechnique(program.techniqueId);
+    let newLevel = currentLevel;
     if (technique && currentLevel < technique.maxLevel) {
-      SaveSystem.setTechniqueLevel(program.techniqueId, currentLevel + 1);
+      newLevel = currentLevel + 1;
+      SaveSystem.setTechniqueLevel(program.techniqueId, newLevel);
     }
+    
+    // Add training history entry
+    SaveSystem.addTrainingHistory({
+      programId: program.id,
+      programName: program.name,
+      timestamp: Date.now(),
+      statChanges: appliedChanges,
+      techniqueUnlocked: technique?.name,
+      techniqueLevel: newLevel
+    });
     
     // Add fatigue
     SaveSystem.addFatigue(program.fatigueCost);
@@ -531,16 +545,32 @@ export class TrainingScene extends Phaser.Scene {
       lastCampAction: 'train'
     });
     
-    // Show training vignette text
-    UIHelper.showNotification(this, program.trainingText, 2500);
+    // Show training delta summary
+    const deltaText = this.formatStatDelta(appliedChanges, technique?.name || '', newLevel);
+    UIHelper.showNotification(this, `${program.trainingText}\n\n${deltaText}`, 3500);
     
     // Return to camp after delay
-    this.time.delayedCall(2500, () => {
+    this.time.delayedCall(3500, () => {
       this.cameras.main.fadeOut(300);
       this.cameras.main.once('camerafadeoutcomplete', () => {
         this.scene.start('CampScene');
       });
     });
+  }
+  
+  private formatStatDelta(changes: Record<string, number>, techName: string, techLevel: number): string {
+    const parts: string[] = ['📊 STAT CHANGES:'];
+    
+    for (const [stat, value] of Object.entries(changes)) {
+      const sign = value > 0 ? '+' : '';
+      parts.push(`  ${stat}: ${sign}${value}`);
+    }
+    
+    if (techName && techLevel > 0) {
+      parts.push(`\n🎯 ${techName} Lv.${techLevel}`);
+    }
+    
+    return parts.join('\n');
   }
   
   private createBackButton(): void {

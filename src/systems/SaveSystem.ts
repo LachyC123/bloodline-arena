@@ -7,11 +7,37 @@ import { Fighter, FighterStatus } from './FighterSystem';
 import { LegendEntry } from './LegacySystem';
 import { WrittenLetter } from '../data/LettersData';
 import { Relic } from '../data/RelicsData';
+import { ItemInstance, Loadout, DEFAULT_LOADOUT, getStarterItems, getDefaultLoadout } from './InventorySystem';
+import { StanceType } from '../data/IntensityMechanics';
+import { Wound } from '../data/IntensityMechanics';
+import { EnemyClassId } from '../data/EnemyClassData';
 
 // Current save version - increment when adding breaking changes
-const SAVE_VERSION = 3;
+const SAVE_VERSION = 4;
 
 // Save data structure
+// Training history entry for stat delta display
+export interface TrainingHistoryEntry {
+  programId: string;
+  programName: string;
+  timestamp: number;
+  statChanges: Record<string, number>;
+  techniqueUnlocked?: string;
+  techniqueLevel?: number;
+}
+
+// Fight history entry
+export interface FightHistoryEntry {
+  enemyName: string;
+  enemyClass: string;
+  result: 'win' | 'loss';
+  damageDealt: number;
+  damageTaken: number;
+  goldEarned: number;
+  fameEarned: number;
+  timestamp: number;
+}
+
 export interface GameSettings {
   reduceMotion: boolean;
   screenShake: boolean;
@@ -66,6 +92,24 @@ export interface RunState {
   // Seals (letter currency for this run)
   seals: number;
   savedLetters: string[];  // Letter IDs that can be read before fights
+  
+  // Inventory system (v4)
+  inventory: ItemInstance[];
+  loadout: Loadout;
+  
+  // Intensity mechanics (v4)
+  currentMomentum: number;
+  currentStance: StanceType;
+  activeWounds: Wound[];
+  armorBreakStacks: number;
+  adrenalineUsed: boolean;
+  
+  // Enemy tracking (v4)
+  seenEnemyClasses: EnemyClassId[];
+  
+  // Training history for stat delta display
+  trainingHistory: TrainingHistoryEntry[];
+  lastFightResult: FightHistoryEntry | null;
 }
 
 export interface MetaProgression {
@@ -192,7 +236,18 @@ const DEFAULT_RUN: RunState = {
   techniques: {},
   sparringInjuries: [],
   seals: 0,
-  savedLetters: []
+  savedLetters: [],
+  // New v4 fields
+  inventory: [],
+  loadout: { ...DEFAULT_LOADOUT },
+  currentMomentum: 0,
+  currentStance: 'balanced',
+  activeWounds: [],
+  armorBreakStacks: 0,
+  adrenalineUsed: false,
+  seenEnemyClasses: [],
+  trainingHistory: [],
+  lastFightResult: null
 };
 
 const DEFAULT_META: MetaProgression = {
@@ -276,11 +331,22 @@ class SaveSystemClass {
         activeModifiers: saved.run?.activeModifiers || [],
         sparringInjuries: saved.run?.sparringInjuries || [],
         savedLetters: saved.run?.savedLetters || [],
+        inventory: saved.run?.inventory || [],
+        activeWounds: saved.run?.activeWounds || [],
+        seenEnemyClasses: saved.run?.seenEnemyClasses || [],
+        trainingHistory: saved.run?.trainingHistory || [],
         // Ensure objects exist
         techniques: saved.run?.techniques || {},
+        loadout: saved.run?.loadout || { ...DEFAULT_LOADOUT },
         // Ensure numbers exist
         fatigue: saved.run?.fatigue || 0,
-        seals: saved.run?.seals || 0
+        seals: saved.run?.seals || 0,
+        currentMomentum: saved.run?.currentMomentum || 0,
+        armorBreakStacks: saved.run?.armorBreakStacks || 0,
+        // Ensure other types
+        currentStance: saved.run?.currentStance || 'balanced',
+        adrenalineUsed: saved.run?.adrenalineUsed || false,
+        lastFightResult: saved.run?.lastFightResult || null
       },
       meta: { 
         ...DEFAULT_META, 
@@ -358,6 +424,31 @@ class SaveSystemClass {
       data.version = 3;
     }
     
+    // Version 3 -> 4: Add inventory, loadout, intensity mechanics
+    if (data.version === 3) {
+      console.log('Migrating v3 -> v4: Adding inventory, loadout, intensity mechanics');
+      
+      // Give starter items to existing runs
+      const starterItems = data.run.inProgress ? getStarterItems() : [];
+      const defaultLoadout = starterItems.length > 0 ? getDefaultLoadout(starterItems) : { ...DEFAULT_LOADOUT };
+      
+      data.run = {
+        ...data.run,
+        inventory: starterItems,
+        loadout: defaultLoadout,
+        currentMomentum: 0,
+        currentStance: 'balanced' as StanceType,
+        activeWounds: [],
+        armorBreakStacks: 0,
+        adrenalineUsed: false,
+        seenEnemyClasses: [],
+        trainingHistory: [],
+        lastFightResult: null
+      };
+      
+      data.version = 4;
+    }
+    
     // Apply merged defaults and save
     this.data = this.mergeWithDefaults(data);
     this.data.version = SAVE_VERSION;
@@ -425,11 +516,14 @@ class SaveSystemClass {
   }
 
   startNewRun(seed?: number, archetypeId: string = 'gladiator'): void {
+    const starterItems = getStarterItems();
     this.data.run = {
       ...DEFAULT_RUN,
       seed: seed ?? Math.floor(Math.random() * 2147483647),
       archetypeId,
-      inProgress: true
+      inProgress: true,
+      inventory: starterItems,
+      loadout: getDefaultLoadout(starterItems)
     };
     this.data.meta.totalRuns++;
     this.save();
@@ -767,6 +861,198 @@ class SaveSystemClass {
 
   getSavedLetters(): string[] {
     return [...this.data.run.savedLetters];
+  }
+
+  // Inventory system helpers
+  getInventory(): ItemInstance[] {
+    return [...this.data.run.inventory];
+  }
+
+  addItem(item: ItemInstance): void {
+    // Check for stackable consumables
+    if (item.itemType === 'consumable') {
+      const existing = this.data.run.inventory.find(
+        i => i.itemId === item.itemId && i.itemType === 'consumable'
+      );
+      if (existing) {
+        existing.quantity += item.quantity;
+        this.save();
+        return;
+      }
+    }
+    this.data.run.inventory.push(item);
+    this.save();
+  }
+
+  removeItem(instanceId: string): boolean {
+    const index = this.data.run.inventory.findIndex(i => i.instanceId === instanceId);
+    if (index > -1) {
+      this.data.run.inventory.splice(index, 1);
+      // Also remove from loadout if equipped
+      this.unequipItem(instanceId);
+      this.save();
+      return true;
+    }
+    return false;
+  }
+
+  updateItemQuantity(instanceId: string, quantity: number): void {
+    const item = this.data.run.inventory.find(i => i.instanceId === instanceId);
+    if (item) {
+      item.quantity = quantity;
+      if (item.quantity <= 0) {
+        this.removeItem(instanceId);
+      } else {
+        this.save();
+      }
+    }
+  }
+
+  // Loadout helpers
+  getLoadout(): Loadout {
+    return { ...this.data.run.loadout };
+  }
+
+  equipItem(instanceId: string, slot: keyof Loadout): void {
+    this.data.run.loadout[slot] = instanceId;
+    this.save();
+  }
+
+  unequipItem(instanceId: string): void {
+    const loadout = this.data.run.loadout;
+    for (const slot of Object.keys(loadout) as (keyof Loadout)[]) {
+      if (loadout[slot] === instanceId) {
+        loadout[slot] = null;
+      }
+    }
+    this.save();
+  }
+
+  setLoadout(loadout: Loadout): void {
+    this.data.run.loadout = { ...loadout };
+    this.save();
+  }
+
+  // Intensity mechanics helpers
+  getMomentum(): number {
+    return this.data.run.currentMomentum;
+  }
+
+  setMomentum(value: number): void {
+    this.data.run.currentMomentum = Math.max(0, Math.min(100, value));
+    this.save();
+  }
+
+  addMomentum(amount: number): void {
+    this.setMomentum(this.data.run.currentMomentum + amount);
+  }
+
+  getStance(): StanceType {
+    return this.data.run.currentStance;
+  }
+
+  setStance(stance: StanceType): void {
+    this.data.run.currentStance = stance;
+    this.save();
+  }
+
+  getWounds(): Wound[] {
+    return [...this.data.run.activeWounds];
+  }
+
+  addWound(wound: Wound): void {
+    this.data.run.activeWounds.push(wound);
+    this.save();
+  }
+
+  clearWounds(): void {
+    this.data.run.activeWounds = [];
+    this.save();
+  }
+
+  getArmorBreakStacks(): number {
+    return this.data.run.armorBreakStacks;
+  }
+
+  setArmorBreakStacks(stacks: number): void {
+    this.data.run.armorBreakStacks = Math.max(0, Math.min(10, stacks));
+    this.save();
+  }
+
+  isAdrenalineUsed(): boolean {
+    return this.data.run.adrenalineUsed;
+  }
+
+  useAdrenaline(): void {
+    this.data.run.adrenalineUsed = true;
+    this.save();
+  }
+
+  resetAdrenaline(): void {
+    this.data.run.adrenalineUsed = false;
+    this.save();
+  }
+
+  // Enemy tracking
+  markEnemyClassSeen(classId: EnemyClassId): void {
+    if (!this.data.run.seenEnemyClasses.includes(classId)) {
+      this.data.run.seenEnemyClasses.push(classId);
+      this.save();
+    }
+  }
+
+  hasSeenEnemyClass(classId: EnemyClassId): boolean {
+    return this.data.run.seenEnemyClasses.includes(classId);
+  }
+
+  getSeenEnemyClasses(): EnemyClassId[] {
+    return [...this.data.run.seenEnemyClasses];
+  }
+
+  // Training history
+  addTrainingHistory(entry: TrainingHistoryEntry): void {
+    this.data.run.trainingHistory.push(entry);
+    // Keep only last 10 entries
+    if (this.data.run.trainingHistory.length > 10) {
+      this.data.run.trainingHistory.shift();
+    }
+    this.save();
+  }
+
+  getTrainingHistory(): TrainingHistoryEntry[] {
+    return [...this.data.run.trainingHistory];
+  }
+
+  getLastTraining(): TrainingHistoryEntry | null {
+    const history = this.data.run.trainingHistory;
+    return history.length > 0 ? history[history.length - 1] : null;
+  }
+
+  // Fight history
+  setLastFightResult(result: FightHistoryEntry): void {
+    this.data.run.lastFightResult = result;
+    this.save();
+  }
+
+  getLastFightResult(): FightHistoryEntry | null {
+    return this.data.run.lastFightResult;
+  }
+
+  // Reset combat state for new fight
+  resetCombatState(): void {
+    this.data.run.currentMomentum = 0;
+    this.data.run.armorBreakStacks = 0;
+    this.data.run.activeWounds = [];
+    this.data.run.adrenalineUsed = false;
+    this.save();
+  }
+
+  // Initialize inventory for new run
+  initializeStarterInventory(): void {
+    const starterItems = getStarterItems();
+    this.data.run.inventory = starterItems;
+    this.data.run.loadout = getDefaultLoadout(starterItems);
+    this.save();
   }
 }
 
