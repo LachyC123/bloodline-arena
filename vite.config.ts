@@ -2,9 +2,9 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
 export default defineConfig({
-  // Base path for GitHub Pages deployment at /<repo>/
-  // Change to '/' for custom domain or username.github.io root
-  base: '/bloodline-arena/',
+  // Use relative base for GitHub Pages compatibility
+  // This works under any repo subpath without configuration
+  base: './',
   
   build: {
     outDir: 'dist',
