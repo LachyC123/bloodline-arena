@@ -187,18 +187,24 @@ export class MainMenuScene extends Phaser.Scene {
     
     if (settings.reduceMotion) return;
     
-    // Floating dust particles
-    const particles = this.add.particles(0, 0, 'particle', {
-      x: { min: 0, max: width },
-      y: { min: 0, max: height },
-      scale: { start: 0.5, end: 0 },
-      alpha: { start: 0.3, end: 0 },
-      speed: { min: 10, max: 30 },
-      angle: { min: -90, max: -90 },
-      lifespan: 4000,
-      frequency: 200,
-      blendMode: 'ADD'
-    });
+    // Floating dust particles (only if texture exists)
+    if (this.textures.exists('particle')) {
+      try {
+        this.add.particles(0, 0, 'particle', {
+          x: { min: 0, max: width },
+          y: { min: 0, max: height },
+          scale: { start: 0.5, end: 0 },
+          alpha: { start: 0.3, end: 0 },
+          speed: { min: 10, max: 30 },
+          angle: { min: -90, max: -90 },
+          lifespan: 4000,
+          frequency: 200,
+          blendMode: 'ADD'
+        });
+      } catch (e) {
+        console.warn('[MainMenu] Particle effect failed:', e);
+      }
+    }
     
     // Torch flicker effect (subtle brightness variation)
     this.tweens.add({
