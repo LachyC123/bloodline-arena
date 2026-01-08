@@ -5,6 +5,9 @@
 import Phaser from 'phaser';
 import { SaveSystem } from '../systems/SaveSystem';
 import { UIHelper } from '../ui/UIHelper';
+import { Button } from '../ui/Button';
+import { startCombat, validateRunState } from '../systems/CombatEntry';
+import { safeSceneCreate } from '../systems/ErrorOverlay';
 
 export class MainMenuScene extends Phaser.Scene {
   private menuContainer!: Phaser.GameObjects.Container;
@@ -179,6 +182,43 @@ export class MainMenuScene extends Phaser.Scene {
       fontSize: '10px',
       color: '#3a3025'
     }).setOrigin(0.5);
+    
+    // Dev-only: Combat smoke test button
+    const settings = SaveSystem.getSettings();
+    if (settings.debugMode) {
+      new Button(this, 50, height - 50, '⚔️', () => {
+        this.runCombatSmokeTest();
+      }, { width: 50, height: 40, fontSize: 14 });
+    }
+  }
+  
+  private runCombatSmokeTest(): void {
+    console.log('[MainMenu] Running combat smoke test...');
+    
+    // Check if we have a valid run state
+    const stateCheck = validateRunState();
+    
+    if (!stateCheck.valid) {
+      console.log('[MainMenu] No valid run state, creating test run...');
+      
+      // Start a new run for testing
+      SaveSystem.startNewRun();
+      
+      // We need to go through recruit first to get a fighter
+      this.cameras.main.fadeOut(200);
+      this.cameras.main.once('camerafadeoutcomplete', () => {
+        this.scene.start('RecruitScene');
+      });
+      return;
+    }
+    
+    // Start combat directly
+    console.log('[MainMenu] Valid run state found, starting combat...');
+    const success = startCombat(this, { nodeType: 'fight' });
+    
+    if (!success) {
+      console.error('[MainMenu] Combat smoke test failed - check error overlay');
+    }
   }
 
   private createAmbientEffects(): void {

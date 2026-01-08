@@ -40,6 +40,8 @@ import {
   anchorBottom,
   MIN_TOUCH_SIZE 
 } from '../ui/Layout';
+import { errorOverlay, safeSceneCreate, logSceneTransition } from '../systems/ErrorOverlay';
+import { CurrentEncounter, clearEncounter } from '../systems/CombatEntry';
 
 export class FightScene extends Phaser.Scene {
   private combatState!: CombatState;
@@ -72,18 +74,74 @@ export class FightScene extends Phaser.Scene {
   }
 
   create(): void {
+    console.log('[FightScene] create() START');
+    
+    // Ensure camera is visible (in case of transition issues)
+    this.cameras.main.setAlpha(1);
+    this.cameras.main.resetFX();
+    this.input.enabled = true;
+    
+    safeSceneCreate(this, () => {
+      this.initializeCombat();
+    });
+  }
+  
+  private initializeCombat(): void {
     const run = SaveSystem.getRun();
+    if (!run) {
+      console.error('[FightScene] No run data!');
+      errorOverlay.addSceneError('FightScene', 'initializeCombat', 'No run data found');
+      this.scene.start('MainMenuScene');
+      return;
+    }
+    
     if (!run.fighter) {
+      console.error('[FightScene] No fighter in run!');
+      errorOverlay.addSceneError('FightScene', 'initializeCombat', 'No fighter in run');
       this.scene.start('MainMenuScene');
       return;
     }
     
     this.player = run.fighter;
-    this.enemy = generateEnemy(run.league as any, run.week);
-    this.combatState = initCombat(this.player, this.enemy);
     
-    console.log(`[Combat] Initialized: player speed=${this.player.currentStats.speed}, enemy speed=${this.enemy.currentStats.speed}`);
-    console.log(`[Combat] First turn: ${this.combatState.turn}`);
+    // Try to get enemy from encounter or generate new one
+    const encounter = this.registry.get('currentEncounter') as CurrentEncounter | undefined;
+    
+    if (encounter?.enemy) {
+      console.log('[FightScene] Using prepared encounter enemy');
+      this.enemy = encounter.enemy;
+    } else {
+      console.log('[FightScene] Generating new enemy (no encounter data)');
+      try {
+        this.enemy = generateEnemy(run.league as any, run.week);
+      } catch (e) {
+        console.error('[FightScene] Enemy generation failed:', e);
+        errorOverlay.addSceneError('FightScene', 'generateEnemy', e as Error);
+        this.showErrorAndReturn('Failed to generate enemy');
+        return;
+      }
+    }
+    
+    if (!this.enemy) {
+      console.error('[FightScene] Enemy is null!');
+      errorOverlay.addSceneError('FightScene', 'initializeCombat', 'Enemy generation returned null');
+      this.showErrorAndReturn('Enemy generation failed');
+      return;
+    }
+    
+    // Initialize combat state
+    try {
+      this.combatState = initCombat(this.player, this.enemy);
+    } catch (e) {
+      console.error('[FightScene] Combat init failed:', e);
+      errorOverlay.addSceneError('FightScene', 'initCombat', e as Error);
+      this.showErrorAndReturn('Combat initialization failed');
+      return;
+    }
+    
+    console.log(`[FightScene] Combat initialized: player=${this.player.firstName}, enemy=${this.enemy.firstName}`);
+    console.log(`[FightScene] Player speed=${this.player.currentStats.speed}, enemy speed=${this.enemy.currentStats.speed}`);
+    console.log(`[FightScene] First turn: ${this.combatState.turn}`);
     
     this.vfx = new CombatVFXManager(this);
     this.isInputEnabled = true;
@@ -123,6 +181,44 @@ export class FightScene extends Phaser.Scene {
       // Phase is already PLAYER_TURN from initCombatController
       this.showTurnIndicator('YOUR TURN');
     }
+    
+    console.log('[FightScene] create() END - combat ready');
+  }
+  
+  private showErrorAndReturn(message: string): void {
+    const { width, height } = this.cameras.main;
+    
+    // Dark background
+    this.add.rectangle(width / 2, height / 2, width, height, 0x1a0a0a);
+    
+    // Error message
+    this.add.text(width / 2, height / 2 - 30, '⚠️ Combat Error', {
+      fontFamily: 'Georgia, serif',
+      fontSize: '18px',
+      color: '#ff6666'
+    }).setOrigin(0.5);
+    
+    this.add.text(width / 2, height / 2 + 10, message, {
+      fontFamily: 'Georgia, serif',
+      fontSize: '12px',
+      color: '#cc8888'
+    }).setOrigin(0.5);
+    
+    // Return button
+    const btnBg = this.add.rectangle(width / 2, height / 2 + 60, 160, 44, 0x3a2a1a);
+    btnBg.setStrokeStyle(2, 0x8b7355);
+    btnBg.setInteractive({ useHandCursor: true });
+    
+    this.add.text(width / 2, height / 2 + 60, 'Return to Map', {
+      fontFamily: 'Georgia, serif',
+      fontSize: '14px',
+      color: '#c9a959'
+    }).setOrigin(0.5);
+    
+    btnBg.on('pointerdown', () => {
+      clearEncounter(this);
+      this.scene.start('RunMapScene');
+    });
   }
   
   /**

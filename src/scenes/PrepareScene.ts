@@ -30,6 +30,8 @@ import { WeaponData, WEAPON_TYPE_INFO } from '../data/WeaponsData';
 import { ArmorData, ARMOR_SLOT_INFO } from '../data/ArmorData';
 import { getEnemyClass, rollEnemyClass, EnemyClass } from '../data/EnemyClassData';
 import { calculatePower, calculateEnemyPower, formatPower, getTierColor, getFightRisk, getPowerAssessment } from '../systems/PowerScore';
+import { safeSceneCreate, logSceneTransition, errorOverlay } from '../systems/ErrorOverlay';
+import { startCombat, CombatEntryParams } from '../systems/CombatEntry';
 
 type InventoryTab = 'weapons' | 'armor' | 'trinkets' | 'consumables';
 
@@ -53,8 +55,28 @@ export class PrepareScene extends Phaser.Scene {
   }
 
   create(): void {
+    console.log('[PrepareScene] create() START');
+    
+    // Ensure camera is visible
+    this.cameras.main.setAlpha(1);
+    this.cameras.main.resetFX();
+    this.input.enabled = true;
+    
+    safeSceneCreate(this, () => {
+      this.initializePrepare();
+    });
+  }
+  
+  private initializePrepare(): void {
     const run = SaveSystem.getRun();
+    if (!run) {
+      console.error('[PrepareScene] No run data!');
+      this.scene.start('MainMenuScene');
+      return;
+    }
+    
     if (!run.fighter) {
+      console.error('[PrepareScene] No fighter!');
       this.scene.start('CampScene');
       return;
     }
@@ -64,13 +86,16 @@ export class PrepareScene extends Phaser.Scene {
     this.loadout = SaveSystem.getLoadout();
     
     // Debug logging
-    console.log('[Prepare] Scene created');
-    console.log('[Prepare] Inventory:', this.inventory.length, 'items');
-    console.log('[Prepare] Weapons:', this.inventory.filter(i => i.itemType === 'weapon').length);
-    console.log('[Prepare] Armor:', this.inventory.filter(i => i.itemType === 'armor').length);
-    this.inventory.forEach(item => {
-      console.log(`[Prepare]   - ${item.itemType}: ${item.itemId} (${item.instanceId})`);
-    });
+    console.log('[PrepareScene] Fighter:', this.fighter.firstName);
+    console.log('[PrepareScene] Inventory:', this.inventory.length, 'items');
+    console.log('[PrepareScene] Weapons:', this.inventory.filter(i => i.itemType === 'weapon').length);
+    console.log('[PrepareScene] Armor:', this.inventory.filter(i => i.itemType === 'armor').length);
+    
+    // Get combat params from registry if available
+    const combatParams = this.registry.get('combatParams') as CombatEntryParams | undefined;
+    if (combatParams) {
+      console.log('[PrepareScene] Combat params:', combatParams);
+    }
     
     // Get enemy class if available from registry
     const enemyClassId = this.registry.get('enemyClassId');
@@ -88,6 +113,7 @@ export class PrepareScene extends Phaser.Scene {
     this.createEnemyPreview();
     
     this.cameras.main.fadeIn(200);
+    console.log('[PrepareScene] create() END');
   }
 
   private createBackground(): void {
@@ -784,15 +810,22 @@ export class PrepareScene extends Phaser.Scene {
       });
     }, { width: 110, height: 44 });
     
-    // Fight button (using new Button component)
+    // Fight button (using new Button component with hardened combat entry)
     new Button(this, width - safe.right - 90, btnY, '🗡️ FIGHT', () => {
       // Save loadout
       SaveSystem.setLoadout(this.loadout);
       
-      this.cameras.main.fadeOut(300);
-      this.cameras.main.once('camerafadeoutcomplete', () => {
-        this.scene.start('FightScene');
-      });
+      // Get combat params from registry
+      const combatParams = this.registry.get('combatParams') as CombatEntryParams | undefined;
+      
+      console.log('[PrepareScene] Starting combat with params:', combatParams);
+      
+      // Use hardened combat entry
+      const success = startCombat(this, combatParams || { nodeType: 'fight' });
+      
+      if (!success) {
+        console.error('[PrepareScene] Failed to start combat - check error overlay');
+      }
     }, { width: 150, height: 44, primary: true });
   }
 
