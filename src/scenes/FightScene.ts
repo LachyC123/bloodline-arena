@@ -65,9 +65,10 @@ export class FightScene extends Phaser.Scene {
   private hypeBar!: { fill: Phaser.GameObjects.Graphics; x: number; y: number; w: number; h: number };
   
   // Action buttons
-  private actionButtonsContainer!: Phaser.GameObjects.Container;
+  private actionButtonsContainer: Phaser.GameObjects.Container | null = null;
   private zoneButtons: Phaser.GameObjects.Container[] = [];
   private isInputEnabled = true;
+  private uiReady = false;
   
   constructor() {
     super({ key: 'FightScene' });
@@ -145,30 +146,35 @@ export class FightScene extends Phaser.Scene {
     
     this.vfx = new CombatVFXManager(this);
     this.isInputEnabled = true;
+    this.uiReady = false; // Not ready yet
     
-    // Initialize combat controller with a getter to always get current state
-    initCombatController(
-      this, 
-      () => this.combatState,  // Getter ensures we always have current state
-      (enabled) => {
-        if (enabled) {
-          this.enableInput();
-        } else {
-          this.disableInput();
-        }
-      }
-    );
-    
+    // Create ALL UI elements FIRST before subscribing to any events
     this.createBackground();
     this.createFighters();
     this.createCombatUI();
     this.createActionPanel();
+    
+    // Mark UI as ready BEFORE subscribing to combat controller
+    this.uiReady = true;
+    console.log(`[FightScene] UI ready: actionButtonsContainer=${!!this.actionButtonsContainer}, zoneButtons=${this.zoneButtons.length}`);
+    
+    // NOW initialize combat controller (safe to call enableInput/disableInput)
+    initCombatController(
+      this, 
+      () => this.combatState,  // Getter ensures we always have current state
+      (enabled) => {
+        this.onInputStateChange(enabled);
+      }
+    );
     
     // Show enemy taunt
     const taunt = getEnemyTaunt(this.enemy);
     this.showCombatMessage(taunt);
     
     this.cameras.main.fadeIn(300);
+    
+    // Sync UI interactivity state after everything is ready
+    this.syncUiInteractivity();
     
     // If enemy goes first, start their turn after a delay
     if (this.combatState.turn === 'enemy') {
@@ -183,6 +189,38 @@ export class FightScene extends Phaser.Scene {
     }
     
     console.log('[FightScene] create() END - combat ready');
+  }
+  
+  /**
+   * Handle input state change from combat controller
+   */
+  private onInputStateChange(enabled: boolean): void {
+    console.log(`[FightScene] onInputStateChange: enabled=${enabled}, uiReady=${this.uiReady}`);
+    
+    // Don't touch UI if not ready yet
+    if (!this.uiReady) {
+      console.log('[FightScene] UI not ready, skipping input state change');
+      return;
+    }
+    
+    if (enabled) {
+      this.enableInput();
+    } else {
+      this.disableInput();
+    }
+  }
+  
+  /**
+   * Sync UI interactivity to current state
+   */
+  private syncUiInteractivity(): void {
+    if (!this.uiReady) return;
+    
+    if (this.isInputEnabled) {
+      this.enableInput();
+    } else {
+      this.disableInput();
+    }
   }
   
   private showErrorAndReturn(message: string): void {
@@ -673,7 +711,9 @@ export class FightScene extends Phaser.Scene {
   
   private createActionButton(x: number, y: number, w: number, h: number, icon: string, label: string, action: CombatAction, staminaCost: number): void {
     const container = this.add.container(x, y);
-    this.actionButtonsContainer.add(container);
+    if (this.actionButtonsContainer) {
+      this.actionButtonsContainer.add(container);
+    }
     
     const bg = this.add.graphics();
     bg.fillStyle(0x2a1f1a, 0.95);
@@ -954,14 +994,38 @@ export class FightScene extends Phaser.Scene {
 
   private disableInput(): void {
     this.isInputEnabled = false;
-    this.actionButtonsContainer.setAlpha(0.5);
-    this.zoneButtons.forEach(btn => btn.setAlpha(0.5));
+    
+    // Safely set alpha on action buttons container
+    if (this.actionButtonsContainer && typeof this.actionButtonsContainer.setAlpha === 'function') {
+      this.actionButtonsContainer.setAlpha(0.5);
+    }
+    
+    // Safely set alpha on zone buttons
+    if (this.zoneButtons && Array.isArray(this.zoneButtons)) {
+      this.zoneButtons.forEach(btn => {
+        if (btn && typeof btn.setAlpha === 'function') {
+          btn.setAlpha(0.5);
+        }
+      });
+    }
   }
 
   private enableInput(): void {
     this.isInputEnabled = true;
-    this.actionButtonsContainer.setAlpha(1);
-    this.zoneButtons.forEach(btn => btn.setAlpha(1));
+    
+    // Safely set alpha on action buttons container
+    if (this.actionButtonsContainer && typeof this.actionButtonsContainer.setAlpha === 'function') {
+      this.actionButtonsContainer.setAlpha(1);
+    }
+    
+    // Safely set alpha on zone buttons
+    if (this.zoneButtons && Array.isArray(this.zoneButtons)) {
+      this.zoneButtons.forEach(btn => {
+        if (btn && typeof btn.setAlpha === 'function') {
+          btn.setAlpha(1);
+        }
+      });
+    }
   }
   
   private delay(ms: number): Promise<void> {
