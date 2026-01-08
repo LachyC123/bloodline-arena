@@ -13,7 +13,7 @@ import { Wound } from '../data/IntensityMechanics';
 import { EnemyClassId } from '../data/EnemyClassData';
 
 // Current save version - increment when adding breaking changes
-const SAVE_VERSION = 6;
+const SAVE_VERSION = 7;
 
 // Save data structure
 // Training history entry for stat delta display
@@ -102,6 +102,25 @@ export interface RunState {
   // Seals (letter currency for this run)
   seals: number;
   savedLetters: string[];  // Letter IDs that can be read before fights
+  
+  // Embers (v7 - forge currency earned from fights)
+  embers: number;
+  
+  // Weapon Mastery (v7)
+  masteryPoints: number;  // Unspent mastery points
+  weaponMastery: Record<string, string[]>;  // weaponType -> unlocked node IDs
+  
+  // Signature Move (v7)
+  signatureId: string | null;
+  signatureLevel: number;
+  signatureXP: number;
+  
+  // Run Map (v7)
+  runMap: any | null;  // RunMap type, using any to avoid circular imports
+  
+  // Contracts (v7)
+  activeContracts: string[];  // Contract IDs for current fight
+  completedContracts: string[];  // Contract IDs completed this run
   
   // Inventory system (v4)
   inventory: ItemInstance[];
@@ -277,6 +296,15 @@ const DEFAULT_RUN: RunState = {
   sparringInjuries: [],
   seals: 0,
   savedLetters: [],
+  embers: 0,  // v7 forge currency
+  masteryPoints: 0,  // v7 weapon mastery
+  weaponMastery: {},  // v7 unlocked skill nodes per weapon type
+  signatureId: null,  // v7 signature move
+  signatureLevel: 1,
+  signatureXP: 0,
+  runMap: null,  // v7 branching path
+  activeContracts: [],  // v7 fight contracts
+  completedContracts: [],  // v7 completed contracts
   // New v4 fields
   inventory: [],
   loadout: { ...DEFAULT_LOADOUT },
@@ -558,6 +586,26 @@ class SaveSystemClass {
       };
       
       data.version = 6;
+    }
+    
+    // Version 6 -> 7: Add forge system, weapon mastery, signatures, run map, contracts
+    if (data.version === 6) {
+      console.log('Migrating v6 -> v7: Adding forge, mastery, signatures, run map, contracts');
+      
+      data.run = {
+        ...data.run,
+        embers: 0,
+        masteryPoints: 0,
+        weaponMastery: {},
+        signatureId: null,
+        signatureLevel: 1,
+        signatureXP: 0,
+        runMap: null,
+        activeContracts: [],
+        completedContracts: []
+      };
+      
+      data.version = 7;
     }
     
     // Apply merged defaults and save
@@ -1016,6 +1064,18 @@ class SaveSystemClass {
       } else {
         this.save();
       }
+    }
+  }
+  
+  /**
+   * Update an entire item (including affixes) by instanceId
+   */
+  updateItem(updatedItem: ItemInstance): void {
+    const idx = this.data.run.inventory.findIndex(i => i.instanceId === updatedItem.instanceId);
+    if (idx >= 0) {
+      this.data.run.inventory[idx] = { ...updatedItem };
+      this.save();
+      console.log('[SaveSystem] Updated item:', updatedItem.instanceId);
     }
   }
 

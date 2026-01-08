@@ -18,6 +18,14 @@ import {
 } from '../systems/CombatSystem';
 import { generateEnemy, getAIAction, getEnemyTaunt, EnemyAIType, EnemyFighter } from '../systems/EnemySystem';
 import { getMutatorById } from '../data/enemyMutators';
+import { 
+  initCombatController, 
+  destroyCombatController, 
+  playerChooseAction as controllerChooseAction,
+  endActionResolution,
+  getDebugState,
+  updateCombatState
+} from '../systems/CombatController';
 import { UIHelper } from '../ui/UIHelper';
 import { AnimatedFighter, CombatVFXManager } from '../combat/CombatAnimator';
 import { 
@@ -75,6 +83,15 @@ export class FightScene extends Phaser.Scene {
     
     this.vfx = new CombatVFXManager(this);
     this.isInputEnabled = true;
+    
+    // Initialize combat controller
+    initCombatController(this, this.combatState, (enabled) => {
+      if (enabled) {
+        this.enableInput();
+      } else {
+        this.disableInput();
+      }
+    });
     
     this.createBackground();
     this.createFighters();
@@ -550,44 +567,14 @@ export class FightScene extends Phaser.Scene {
   private async performAction(action: CombatAction): Promise<void> {
     console.log(`[Combat] performAction: ${action}, turn=${this.combatState.turn}, phase=${this.combatState.phase}, inputEnabled=${this.isInputEnabled}`);
     
-    if (!this.isInputEnabled) {
-      console.log('[Combat] Blocked: input disabled');
-      this.showCombatMessage('Please wait...');
+    // Use centralized controller for validation
+    const result = controllerChooseAction(action, this.selectedZone);
+    if (!result.success) {
+      console.log(`[Combat] Blocked: ${result.reason}`);
+      this.showCombatMessage(result.reason);
       return;
     }
     
-    if (this.combatState.turn !== 'player') {
-      console.log('[Combat] Blocked: not player turn');
-      this.showCombatMessage("Wait for your turn!");
-      return;
-    }
-    
-    if (this.combatState.phase === 'end') {
-      console.log('[Combat] Blocked: combat ended');
-      return;
-    }
-    
-    // Check stamina
-    const staminaCosts: Record<CombatAction, number> = {
-      light_attack: 10,
-      heavy_attack: 25,
-      guard: 5,
-      dodge: 15,
-      special: 20,
-      item: 0
-    };
-    
-    if (this.combatState.player.currentStamina < staminaCosts[action]) {
-      this.showCombatMessage('Not enough stamina!');
-      return;
-    }
-    
-    if (action === 'special' && this.combatState.player.currentFocus < 30) {
-      this.showCombatMessage('Not enough focus!');
-      return;
-    }
-    
-    this.disableInput();
     console.log('[Combat] Starting action:', action);
     
     try {
@@ -595,47 +582,51 @@ export class FightScene extends Phaser.Scene {
       await this.animatePlayerAction(action);
       
       // Execute game logic
-      const result = executeAction(this.combatState, 'player', action, this.selectedZone);
-      console.log('[Combat] Action result:', result);
+      const actionResult = executeAction(this.combatState, 'player', action, this.selectedZone);
+      console.log('[Combat] Action result:', actionResult);
+      
+      // Update controller with new state
+      updateCombatState(this.combatState);
       
       // Show result
-      this.showCombatMessage(result.message);
-    
-    // Show damage numbers
-    if (result.damage > 0) {
-      const { width, height } = this.cameras.main;
-      this.vfx.showDamageNumber(width * 0.75, height * 0.4, result.damage, result.critical || false);
-      this.vfx.createSparks(width * 0.75, height * 0.45);
+      this.showCombatMessage(actionResult.message);
       
-      // Enemy hit reaction
-      if (result.damage > 20) {
-        await this.enemySprite.playStagger();
-      } else {
-        await this.enemySprite.playHit(result.damage);
+      // Show damage numbers
+      if (actionResult.damage > 0) {
+        const { width, height } = this.cameras.main;
+        this.vfx.showDamageNumber(width * 0.75, height * 0.4, actionResult.damage, actionResult.critical || false);
+        this.vfx.createSparks(width * 0.75, height * 0.45);
+        
+        // Enemy hit reaction
+        if (actionResult.damage > 20) {
+          await this.enemySprite.playStagger();
+        } else {
+          await this.enemySprite.playHit(actionResult.damage);
+        }
+      } else if (action === 'guard' || action === 'dodge') {
+        // No damage dealt, show status
+        const { width, height } = this.cameras.main;
+        this.vfx.showStatusEffect(width * 0.25, height * 0.35, action === 'guard' ? 'block' : 'dodge');
       }
-    } else if (action === 'guard' || action === 'dodge') {
-      // No damage dealt, show status
-      const { width, height } = this.cameras.main;
-      this.vfx.showStatusEffect(width * 0.25, height * 0.35, action === 'guard' ? 'block' : 'dodge');
-    }
-    
-    this.updateAllBars();
-    
-    // Check for combat end
-    if (this.combatState.winner) {
-      await this.endCombat();
-      return;
-    }
-    
-    // Enemy turn after delay
-    await this.delay(800);
-    await this.performEnemyTurn();
-    
+      
+      this.updateAllBars();
+      
+      // Check for combat end
+      if (this.combatState.winner) {
+        await this.endCombat();
+        return;
+      }
+      
+      // Enemy turn after delay
+      await this.delay(800);
+      await this.performEnemyTurn();
+      
     } catch (error) {
       console.error('[Combat] Error during action:', error);
       this.showCombatMessage('Action failed!');
-      // Re-enable input so player can try again
-      this.enableInput();
+    } finally {
+      // ALWAYS end resolution to prevent softlock
+      endActionResolution();
     }
   }
   
@@ -884,5 +875,12 @@ export class FightScene extends Phaser.Scene {
         this.scene.start('DeathScene');
       });
     }
+  }
+  
+  /**
+   * Cleanup when scene shuts down
+   */
+  shutdown(): void {
+    destroyCombatController();
   }
 }

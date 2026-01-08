@@ -8,7 +8,14 @@ import { Fighter } from '../systems/FighterSystem';
 import { WEAPONS_DATA as OLD_WEAPONS, ARMOR_DATA as OLD_ARMOR, COMBAT_ITEMS } from '../data/CombatData';
 import { WEAPONS_DATA } from '../data/WeaponsData';
 import { ARMOR_DATA } from '../data/ArmorData';
-import { createItemInstance, ItemInstance } from '../systems/InventorySystem';
+import { 
+  createItemInstance, 
+  createAffixedItemInstance, 
+  ItemInstance, 
+  getItemName,
+  getItemData 
+} from '../systems/InventorySystem';
+import { getAffixSummary, hasAffixes } from '../systems/AffixSystem';
 import { UIHelper } from '../ui/UIHelper';
 import { RNG } from '../systems/RNGSystem';
 
@@ -16,7 +23,7 @@ export class ShopScene extends Phaser.Scene {
   private gold!: number;
   private fighter!: Fighter;
   private selectedCategory: 'weapons' | 'armor' | 'items' = 'items';
-  private shopInventory: Map<string, any[]> = new Map();
+  private shopStock: ItemInstance[] = [];
   private goldText!: Phaser.GameObjects.Text;
   private itemsContainer!: Phaser.GameObjects.Container;
   
@@ -57,22 +64,36 @@ export class ShopScene extends Phaser.Scene {
     const leagueOrder = ['bronze', 'silver', 'gold'];
     const leagueIdx = leagueOrder.indexOf(league);
     
-    // Random weapons from WeaponsData
+    this.shopStock = [];
+    
+    // Generate weapons as ItemInstances with affixes
     const availableWeapons = WEAPONS_DATA.filter(w => 
       leagueOrder.indexOf(w.leagueMin) <= leagueIdx
     );
     const weapons = RNG.shuffle([...availableWeapons]).slice(0, numWeapons);
-    this.shopInventory.set('weapons', weapons);
+    weapons.forEach(w => {
+      // Create item instance with affixes rolled based on rarity and league
+      const instance = createAffixedItemInstance(w.id, 'weapon', w.rarity, league);
+      this.shopStock.push(instance);
+    });
     
-    // Random armor from ArmorData
+    // Generate armor as ItemInstances with affixes
     const availableArmor = ARMOR_DATA.filter(a => 
       leagueOrder.indexOf(a.leagueMin) <= leagueIdx
     );
     const armor = RNG.shuffle([...availableArmor]).slice(0, numArmor);
-    this.shopInventory.set('armor', armor);
+    armor.forEach(a => {
+      const instance = createAffixedItemInstance(a.id, 'armor', a.rarity, league, a.slot);
+      this.shopStock.push(instance);
+    });
     
-    // All consumable items always available
-    this.shopInventory.set('items', [...COMBAT_ITEMS]);
+    // Consumables (no affixes)
+    COMBAT_ITEMS.forEach(item => {
+      const instance = createItemInstance(item.id, 'consumable', undefined, 1);
+      this.shopStock.push(instance);
+    });
+    
+    console.log('[Shop] Generated stock:', this.shopStock.length, 'items');
   }
 
   private createBackground(): void {
@@ -154,13 +175,21 @@ export class ShopScene extends Phaser.Scene {
     
     this.itemsContainer = this.add.container(0, 0);
     
-    const items = this.shopInventory.get(this.selectedCategory) || [];
+    // Filter stock by category
+    const categoryItemTypes: Record<string, string[]> = {
+      weapons: ['weapon'],
+      armor: ['armor'],
+      items: ['consumable', 'trinket']
+    };
+    const validTypes = categoryItemTypes[this.selectedCategory] || ['consumable'];
+    const items = this.shopStock.filter(item => validTypes.includes(item.itemType));
+    
     const startY = 150;
-    const itemHeight = 80;
+    const itemHeight = 90;
     
     items.forEach((item, i) => {
       const y = startY + i * itemHeight;
-      this.createItemCard(item, 30, y, width - 60, 70);
+      this.createItemCard(item, 30, y, width - 60, 85);
     });
     
     if (items.length === 0) {
@@ -172,15 +201,37 @@ export class ShopScene extends Phaser.Scene {
     }
   }
 
-  private createItemCard(item: any, x: number, y: number, w: number, h: number): void {
+  private createItemCard(instance: ItemInstance, x: number, y: number, w: number, h: number): void {
     const container = this.add.container(x, y);
     this.itemsContainer.add(container);
     
-    // Background
+    // Get base item data
+    const baseData = getItemData(instance);
+    if (!baseData) return;
+    
+    // Rarity from base item
+    const rarity = (baseData as any).rarity || 'common';
+    const price = (baseData as any).price || 50;
+    
+    // Background with rarity glow
     const bg = this.add.graphics();
+    const rarityGlows: Record<string, number> = {
+      common: 0x3a3a3a,
+      uncommon: 0x1e5a3a,
+      rare: 0x2a3a6a,
+      epic: 0x5a2a6a,
+      legendary: 0x6a5a1a
+    };
+    
+    // Subtle glow if has affixes
+    if (hasAffixes(instance)) {
+      bg.fillStyle(rarityGlows[rarity] || 0x3a3a3a, 0.3);
+      bg.fillRoundedRect(-2, -2, w + 4, h + 4, 10);
+    }
+    
     bg.fillStyle(0x2a1f1a, 1);
     bg.fillRoundedRect(0, 0, w, h, 8);
-    bg.lineStyle(1, 0x5a4a3a, 1);
+    bg.lineStyle(2, rarityGlows[rarity] || 0x5a4a3a, 1);
     bg.strokeRoundedRect(0, 0, w, h, 8);
     container.add(bg);
     
@@ -189,41 +240,67 @@ export class ShopScene extends Phaser.Scene {
       common: '#8b8b8b',
       uncommon: '#2e8b57',
       rare: '#4169e1',
+      epic: '#a855f7',
       legendary: '#ffd700'
     };
-    const rarityColor = rarityColors[item.rarity] || '#8b8b8b';
+    const rarityColor = rarityColors[rarity] || '#8b8b8b';
     
-    // Item name
-    const name = this.add.text(15, 12, item.name, {
+    // Item name (includes affixes)
+    const fullName = getItemName(instance);
+    const name = this.add.text(15, 10, fullName, {
       fontFamily: 'Georgia, serif',
-      fontSize: '14px',
-      color: rarityColor
+      fontSize: '13px',
+      color: rarityColor,
+      wordWrap: { width: w - 100 }
     });
     container.add(name);
     
-    // Description
-    const desc = this.add.text(15, 32, item.description || item.effect, {
+    // Affix summary (if any)
+    const affixSummary = getAffixSummary(instance);
+    if (affixSummary.length > 0) {
+      const summaryText = affixSummary.slice(0, 2).join(' • ');
+      const affixLine = this.add.text(15, 32, summaryText, {
+        fontFamily: 'Georgia, serif',
+        fontSize: '9px',
+        color: '#c9a959',
+        fontStyle: 'italic'
+      });
+      container.add(affixLine);
+    }
+    
+    // Base stats
+    let statsText = '';
+    if (instance.itemType === 'weapon' && 'damageMin' in baseData) {
+      const weapon = baseData as any;
+      statsText = `⚔️ ${weapon.damageMin}-${weapon.damageMax}`;
+    } else if (instance.itemType === 'armor' && 'defense' in baseData) {
+      const armor = baseData as any;
+      statsText = `🛡️ ${armor.defense}`;
+    } else if ('effect' in baseData) {
+      statsText = (baseData as any).effect;
+    }
+    
+    const stats = this.add.text(15, hasAffixes(instance) ? 48 : 35, statsText, {
       fontFamily: 'Georgia, serif',
       fontSize: '10px',
-      color: '#8b7355',
-      wordWrap: { width: w - 100 }
+      color: '#8b7355'
     });
-    container.add(desc);
+    container.add(stats);
     
     // Price
-    const price = this.add.text(w - 15, 12, `💰 ${item.price}`, {
+    const priceText = this.add.text(w - 15, 10, `💰 ${price}`, {
       fontFamily: 'Georgia, serif',
       fontSize: '14px',
-      color: this.gold >= item.price ? '#ffd700' : '#8b0000'
+      color: this.gold >= price ? '#ffd700' : '#8b0000'
     }).setOrigin(1, 0);
-    container.add(price);
+    container.add(priceText);
     
     // Buy button
-    const canAfford = this.gold >= item.price;
+    const canAfford = this.gold >= price;
     const buyBtn = UIHelper.createButton(
-      this, w - 45, h - 20, 'BUY',
-      () => this.buyItem(item),
-      { width: 60, height: 25, fontSize: '10px', primary: canAfford }
+      this, w - 45, h - 22, 'BUY',
+      () => this.buyShopItem(instance, price),
+      { width: 60, height: 28, fontSize: '11px', primary: canAfford }
     );
     container.add(buyBtn);
     
@@ -232,8 +309,8 @@ export class ShopScene extends Phaser.Scene {
     }
   }
 
-  private buyItem(item: any): void {
-    if (this.gold < item.price) {
+  private buyShopItem(instance: ItemInstance, price: number): void {
+    if (this.gold < price) {
       UIHelper.showNotification(this, 'Not enough gold!');
       return;
     }
@@ -241,35 +318,26 @@ export class ShopScene extends Phaser.Scene {
     const goldBefore = this.gold;
     
     // Deduct gold
-    this.gold -= item.price;
+    this.gold -= price;
     this.goldText.setText(`💰 ${this.gold}`);
     
-    // Create ItemInstance and add to inventory using proper system
-    let newItem: ItemInstance;
-    
-    if (this.selectedCategory === 'items') {
-      // Consumables
-      newItem = createItemInstance(item.id, 'consumable', undefined, 1);
-      console.log('[Shop] onPurchase:', item.id, 'consumable', 'gold:', goldBefore, '->', this.gold);
-    } else if (this.selectedCategory === 'weapons') {
-      // Weapons
-      newItem = createItemInstance(item.id, 'weapon');
-      console.log('[Shop] onPurchase:', item.id, 'weapon', 'gold:', goldBefore, '->', this.gold);
-    } else {
-      // Armor - determine slot from item data
-      const armorSlot = item.slot || 'body';
-      newItem = createItemInstance(item.id, 'armor', armorSlot);
-      console.log('[Shop] onPurchase:', item.id, 'armor', armorSlot, 'gold:', goldBefore, '->', this.gold);
-    }
-    
-    // Add to inventory using the proper SaveSystem method
-    SaveSystem.addItem(newItem);
-    console.log('[Shop] onInventoryAdd:', newItem.instanceId, newItem.itemId, newItem.itemType);
+    // Add the exact ItemInstance (with its affixes) to inventory
+    SaveSystem.addItem(instance);
+    console.log('[Shop] onPurchase:', instance.instanceId, instance.itemType, 'gold:', goldBefore, '->', this.gold);
+    console.log('[Shop] Affixes:', instance.prefixId, instance.suffixId, instance.curseId);
     
     // Update gold in save
     SaveSystem.updateRun({ gold: this.gold });
     
-    UIHelper.showNotification(this, `Purchased ${item.name}!`);
+    // Get display name
+    const fullName = getItemName(instance);
+    UIHelper.showNotification(this, `Purchased ${fullName}!`);
+    
+    // Remove from shop stock (can only buy once)
+    const idx = this.shopStock.findIndex(i => i.instanceId === instance.instanceId);
+    if (idx >= 0) {
+      this.shopStock.splice(idx, 1);
+    }
     
     // Log inventory state
     const inv = SaveSystem.getInventory();

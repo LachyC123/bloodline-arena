@@ -6,9 +6,14 @@
 import { ItemType, ItemInstance } from './InventorySystem';
 import { ItemRarity } from '../data/WeaponsData';
 import { RNG } from './RNGSystem';
-import { AffixData, AffixTier, getPrefixById, getPrefixesForItemType, StatMod, ProcEffect } from '../data/affixes/prefixes';
-import { getSuffixById, getSuffixesForItemType } from '../data/affixes/suffixes';
-import { CurseData, getCurseById, getCursesForItemType, getCurseChance, CURSES } from '../data/affixes/curses';
+import { AffixData, AffixTier, getPrefixById as _getPrefixById, getPrefixesForItemType, StatMod, ProcEffect } from '../data/affixes/prefixes';
+import { getSuffixById as _getSuffixById, getSuffixesForItemType } from '../data/affixes/suffixes';
+import { CurseData, getCurseById as _getCurseById, getCursesForItemType, getCurseChance, CURSES } from '../data/affixes/curses';
+
+// Re-export for external use
+export const getPrefixById = _getPrefixById;
+export const getSuffixById = _getSuffixById;
+export const getCurseById = _getCurseById;
 
 // Extended ItemInstance with affixes
 export interface AffixedItemInstance extends ItemInstance {
