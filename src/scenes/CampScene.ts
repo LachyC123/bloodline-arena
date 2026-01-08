@@ -24,6 +24,8 @@ import {
 } from '../systems/InventorySystem';
 import { WeaponData } from '../data/WeaponsData';
 import { ArmorData } from '../data/ArmorData';
+import { transitionToScene } from '../ui/Transitions';
+import { DebugOverlay } from '../ui/DebugOverlay';
 
 export class CampScene extends Phaser.Scene {
   private fighter!: Fighter;
@@ -37,6 +39,7 @@ export class CampScene extends Phaser.Scene {
   private campfireGlow?: Phaser.GameObjects.Graphics;
   private powerText?: Phaser.GameObjects.Text;
   private equipmentModal?: Phaser.GameObjects.Container;
+  private debugOverlay?: DebugOverlay;
   
   constructor() {
     super({ key: 'CampScene' });
@@ -71,7 +74,20 @@ export class CampScene extends Phaser.Scene {
     // Check for relic opportunity
     this.checkRelicOpportunity();
     
+    // Initialize debug overlay (dev-only, can be toggled)
+    this.debugOverlay = new DebugOverlay(this);
+    const settings = SaveSystem.getSettings();
+    if ((settings as any).debugMode) {
+      this.debugOverlay.show();
+    }
+    
     this.cameras.main.fadeIn(300);
+  }
+  
+  private toggleDebugOverlay(): void {
+    if (this.debugOverlay) {
+      this.debugOverlay.toggle();
+    }
   }
 
   private createBackground(): void {
@@ -827,10 +843,8 @@ export class CampScene extends Phaser.Scene {
       lastCampAction: 'fight'
     });
     
-    this.cameras.main.fadeOut(300);
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start('PrepareScene');
-    });
+    // Use enhanced transition for fight preparation
+    transitionToScene(this, 'PrepareScene', 'wipe', 350);
   }
 
   private checkGhostMoments(): void {

@@ -5,7 +5,10 @@
 import Phaser from 'phaser';
 import { SaveSystem } from '../systems/SaveSystem';
 import { Fighter } from '../systems/FighterSystem';
-import { WEAPONS_DATA, ARMOR_DATA, COMBAT_ITEMS } from '../data/CombatData';
+import { WEAPONS_DATA as OLD_WEAPONS, ARMOR_DATA as OLD_ARMOR, COMBAT_ITEMS } from '../data/CombatData';
+import { WEAPONS_DATA } from '../data/WeaponsData';
+import { ARMOR_DATA } from '../data/ArmorData';
+import { createItemInstance, ItemInstance } from '../systems/InventorySystem';
 import { UIHelper } from '../ui/UIHelper';
 import { RNG } from '../systems/RNGSystem';
 
@@ -45,18 +48,30 @@ export class ShopScene extends Phaser.Scene {
 
   private generateShopInventory(): void {
     const meta = SaveSystem.getMeta();
+    const run = SaveSystem.getRun();
+    const league = run.league || 'bronze';
     const numWeapons = 3 + Math.floor(meta.promoterLevel / 2);
     const numArmor = 3 + Math.floor(meta.promoterLevel / 2);
     
-    // Random weapons
-    const weapons = RNG.shuffle([...WEAPONS_DATA]).slice(0, numWeapons);
+    // Filter weapons/armor by league availability
+    const leagueOrder = ['bronze', 'silver', 'gold'];
+    const leagueIdx = leagueOrder.indexOf(league);
+    
+    // Random weapons from WeaponsData
+    const availableWeapons = WEAPONS_DATA.filter(w => 
+      leagueOrder.indexOf(w.leagueMin) <= leagueIdx
+    );
+    const weapons = RNG.shuffle([...availableWeapons]).slice(0, numWeapons);
     this.shopInventory.set('weapons', weapons);
     
-    // Random armor
-    const armor = RNG.shuffle([...ARMOR_DATA]).slice(0, numArmor);
+    // Random armor from ArmorData
+    const availableArmor = ARMOR_DATA.filter(a => 
+      leagueOrder.indexOf(a.leagueMin) <= leagueIdx
+    );
+    const armor = RNG.shuffle([...availableArmor]).slice(0, numArmor);
     this.shopInventory.set('armor', armor);
     
-    // All items always available
+    // All consumable items always available
     this.shopInventory.set('items', [...COMBAT_ITEMS]);
   }
 
@@ -223,54 +238,42 @@ export class ShopScene extends Phaser.Scene {
       return;
     }
     
+    const goldBefore = this.gold;
+    
     // Deduct gold
     this.gold -= item.price;
     this.goldText.setText(`💰 ${this.gold}`);
     
-    // Add to fighter inventory
+    // Create ItemInstance and add to inventory using proper system
+    let newItem: ItemInstance;
+    
     if (this.selectedCategory === 'items') {
-      this.fighter.inventory.push({
-        id: item.id,
-        name: item.name,
-        type: 'accessory',
-        rarity: 'common',
-        stats: {},
-        description: item.description
-      });
+      // Consumables
+      newItem = createItemInstance(item.id, 'consumable', undefined, 1);
+      console.log('[Shop] onPurchase:', item.id, 'consumable', 'gold:', goldBefore, '->', this.gold);
     } else if (this.selectedCategory === 'weapons') {
-      this.fighter.equipment.weapon = {
-        id: item.id,
-        name: item.name,
-        type: 'weapon',
-        rarity: item.rarity,
-        stats: { 
-          attack: item.attackBonus,
-          accuracy: item.accuracyBonus,
-          critChance: item.critBonus
-        },
-        effect: item.effect,
-        description: item.description
-      };
-    } else if (this.selectedCategory === 'armor') {
-      this.fighter.equipment.armor = {
-        id: item.id,
-        name: item.name,
-        type: 'armor',
-        rarity: item.rarity,
-        stats: {
-          defense: item.defenseBonus,
-          maxHP: item.hpBonus,
-          speed: -item.speedPenalty
-        },
-        effect: item.effect,
-        description: item.description
-      };
+      // Weapons
+      newItem = createItemInstance(item.id, 'weapon');
+      console.log('[Shop] onPurchase:', item.id, 'weapon', 'gold:', goldBefore, '->', this.gold);
+    } else {
+      // Armor - determine slot from item data
+      const armorSlot = item.slot || 'body';
+      newItem = createItemInstance(item.id, 'armor', armorSlot);
+      console.log('[Shop] onPurchase:', item.id, 'armor', armorSlot, 'gold:', goldBefore, '->', this.gold);
     }
     
-    // Save
-    SaveSystem.updateRun({ fighter: this.fighter, gold: this.gold });
+    // Add to inventory using the proper SaveSystem method
+    SaveSystem.addItem(newItem);
+    console.log('[Shop] onInventoryAdd:', newItem.instanceId, newItem.itemId, newItem.itemType);
+    
+    // Update gold in save
+    SaveSystem.updateRun({ gold: this.gold });
     
     UIHelper.showNotification(this, `Purchased ${item.name}!`);
+    
+    // Log inventory state
+    const inv = SaveSystem.getInventory();
+    console.log('[Shop] Inventory after purchase:', inv.length, 'items');
     
     // Refresh list
     this.createItemList();

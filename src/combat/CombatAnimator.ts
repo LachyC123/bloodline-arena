@@ -933,4 +933,132 @@ export class CombatVFXManager {
       onComplete: () => trail.destroy()
     });
   }
+  
+  /**
+   * Show status effect with text label
+   */
+  showStatusPopup(x: number, y: number, text: string, color: string = '#ff4444'): void {
+    const container = this.scene.add.container(x, y - 40);
+    container.setDepth(150);
+    
+    // Background pill
+    const bg = this.scene.add.graphics();
+    const textWidth = text.length * 8 + 20;
+    bg.fillStyle(0x000000, 0.8);
+    bg.fillRoundedRect(-textWidth / 2, -12, textWidth, 24, 12);
+    container.add(bg);
+    
+    // Text
+    const label = this.scene.add.text(0, 0, text, {
+      fontFamily: 'Georgia, serif',
+      fontSize: '12px',
+      color,
+      stroke: '#000000',
+      strokeThickness: 1
+    }).setOrigin(0.5);
+    container.add(label);
+    
+    // Animate
+    container.setScale(0);
+    this.scene.tweens.add({
+      targets: container,
+      scale: 1,
+      duration: 150,
+      ease: 'Back.easeOut'
+    });
+    
+    this.scene.tweens.add({
+      targets: container,
+      y: y - 80,
+      alpha: 0,
+      duration: 1200,
+      delay: 400,
+      ease: 'Quad.out',
+      onComplete: () => container.destroy()
+    });
+  }
+  
+  /**
+   * Impact dust effect
+   */
+  createDust(x: number, y: number): void {
+    for (let i = 0; i < 6; i++) {
+      const dust = this.scene.add.graphics();
+      dust.fillStyle(0x8b7355, 0.6);
+      dust.fillCircle(0, 0, 4 + Math.random() * 4);
+      dust.setPosition(x, y);
+      dust.setDepth(70);
+      
+      const angle = Math.PI + (Math.random() - 0.5) * 1.2;
+      const distance = 20 + Math.random() * 30;
+      
+      this.scene.tweens.add({
+        targets: dust,
+        x: x + Math.cos(angle) * distance,
+        y: y + Math.sin(angle) * distance + 10,
+        alpha: 0,
+        scale: 0.5,
+        duration: 400,
+        ease: 'Quad.out',
+        onComplete: () => dust.destroy()
+      });
+    }
+  }
+  
+  /**
+   * Show combo counter
+   */
+  showCombo(x: number, y: number, combo: number): void {
+    if (combo < 2) return;
+    
+    const text = this.scene.add.text(x, y, `${combo}x COMBO!`, {
+      fontFamily: 'Georgia, serif',
+      fontSize: '16px',
+      color: '#ffd700',
+      stroke: '#000000',
+      strokeThickness: 2
+    }).setOrigin(0.5).setDepth(110);
+    
+    text.setScale(0);
+    this.scene.tweens.add({
+      targets: text,
+      scale: 1.2,
+      duration: 150,
+      yoyo: true,
+      hold: 300,
+      onComplete: () => {
+        this.scene.tweens.add({
+          targets: text,
+          alpha: 0,
+          y: y - 30,
+          duration: 300,
+          onComplete: () => text.destroy()
+        });
+      }
+    });
+  }
+  
+  /**
+   * Camera shake
+   */
+  shakeCamera(intensity: number = 0.005, duration: number = 100): void {
+    const settings = SaveSystem.getSettings();
+    if (!settings.screenShake) return;
+    
+    this.scene.cameras.main.shake(duration, intensity);
+  }
+  
+  /**
+   * Hit stop effect (brief pause)
+   */
+  hitStop(duration: number = 60): Promise<void> {
+    const settings = SaveSystem.getSettings();
+    if (settings.reduceMotion) {
+      return Promise.resolve();
+    }
+    
+    return new Promise(resolve => {
+      this.scene.time.delayedCall(duration, resolve);
+    });
+  }
 }

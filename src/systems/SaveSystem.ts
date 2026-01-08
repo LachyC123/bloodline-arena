@@ -49,6 +49,7 @@ export interface GameSettings {
   showDamageNumbers: boolean;
   showTimingRing: boolean;
   autoSave: boolean;
+  debugMode: boolean;
 }
 
 export interface RunState {
@@ -213,7 +214,8 @@ const DEFAULT_SETTINGS: GameSettings = {
   sfxVolume: 0.8,
   showDamageNumbers: true,
   showTimingRing: true,
-  autoSave: true
+  autoSave: true,
+  debugMode: false
 };
 
 const DEFAULT_LIFETIME_STATS: LifetimeStats = {

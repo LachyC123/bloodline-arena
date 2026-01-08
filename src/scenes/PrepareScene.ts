@@ -63,6 +63,15 @@ export class PrepareScene extends Phaser.Scene {
     this.inventory = SaveSystem.getInventory();
     this.loadout = SaveSystem.getLoadout();
     
+    // Debug logging
+    console.log('[Prepare] Scene created');
+    console.log('[Prepare] Inventory:', this.inventory.length, 'items');
+    console.log('[Prepare] Weapons:', this.inventory.filter(i => i.itemType === 'weapon').length);
+    console.log('[Prepare] Armor:', this.inventory.filter(i => i.itemType === 'armor').length);
+    this.inventory.forEach(item => {
+      console.log(`[Prepare]   - ${item.itemType}: ${item.itemId} (${item.instanceId})`);
+    });
+    
     // Get enemy class if available from registry
     const enemyClassId = this.registry.get('enemyClassId');
     if (enemyClassId) {
