@@ -7,6 +7,7 @@ import Phaser from 'phaser';
 import { SaveSystem } from '../systems/SaveSystem';
 import { Fighter } from '../systems/FighterSystem';
 import { UIHelper } from '../ui/UIHelper';
+import { Button } from '../ui/Button';
 import { 
   getSafeArea, 
   getContentArea, 
@@ -27,7 +28,8 @@ import {
 } from '../systems/InventorySystem';
 import { WeaponData, WEAPON_TYPE_INFO } from '../data/WeaponsData';
 import { ArmorData, ARMOR_SLOT_INFO } from '../data/ArmorData';
-import { getEnemyClass, EnemyClass } from '../data/EnemyClassData';
+import { getEnemyClass, rollEnemyClass, EnemyClass } from '../data/EnemyClassData';
+import { calculatePower, calculateEnemyPower, formatPower, getTierColor, getFightRisk } from '../systems/PowerScore';
 
 type InventoryTab = 'weapons' | 'armor' | 'trinkets' | 'consumables';
 
@@ -669,36 +671,71 @@ export class PrepareScene extends Phaser.Scene {
   }
 
   private createEnemyPreview(): void {
-    if (!this.enemyClass) return;
-    
     const { width, height } = this.cameras.main;
     const safe = getSafeArea();
     
     const previewY = height * 0.68;
     const previewW = width - safe.left - safe.right;
     
+    // If no enemy class, generate a random one for display
+    const run = SaveSystem.getRun();
+    if (!this.enemyClass) {
+      const leagueType = (run.league === 'bronze' || run.league === 'silver' || run.league === 'gold') 
+        ? run.league 
+        : 'bronze';
+      this.enemyClass = rollEnemyClass(leagueType as 'bronze' | 'silver' | 'gold');
+      // Store for fight scene
+      this.registry.set('enemyClassId', this.enemyClass.id);
+    }
+    
+    const enemy = this.enemyClass;
+    
     // Enemy info box
     const bg = this.add.graphics();
     bg.fillStyle(0x2a1a1a, 0.9);
-    bg.fillRoundedRect(safe.left, previewY, previewW, 65, 5);
+    bg.fillRoundedRect(safe.left, previewY, previewW, 85, 5);
     bg.lineStyle(1, 0x8b0000, 0.5);
-    bg.strokeRoundedRect(safe.left, previewY, previewW, 65, 5);
+    bg.strokeRoundedRect(safe.left, previewY, previewW, 85, 5);
     
-    this.add.text(safe.left + 15, previewY + 10, `${this.enemyClass.icon} FACING: ${this.enemyClass.name.toUpperCase()}`, {
+    this.add.text(safe.left + 15, previewY + 10, `${enemy.icon} FACING: ${enemy.name.toUpperCase()}`, {
       fontFamily: 'Georgia, serif', fontSize: '12px', color: '#c9a959'
     });
     
-    this.add.text(safe.left + 15, previewY + 28, this.enemyClass.title, {
+    this.add.text(safe.left + 15, previewY + 28, enemy.title, {
       fontFamily: 'Georgia, serif', fontSize: '10px', color: '#8b7355'
     });
     
+    // Power comparison
+    const playerPower = calculatePower(this.fighter);
+    
+    // Estimate enemy power (based on class modifiers and league)
+    const baseEnemyPower = playerPower.power * (0.85 + Math.random() * 0.3);
+    const risk = getFightRisk(playerPower.power, baseEnemyPower);
+    
+    this.add.text(previewW - 15, previewY + 10, `⚡ ${formatPower(playerPower.power)}`, {
+      fontFamily: 'Georgia, serif', fontSize: '11px', color: getTierColor(playerPower.tier)
+    }).setOrigin(1, 0);
+    
+    this.add.text(previewW - 15, previewY + 28, `vs ~${formatPower(Math.round(baseEnemyPower))}`, {
+      fontFamily: 'Georgia, serif', fontSize: '10px', color: '#8b7355'
+    }).setOrigin(1, 0);
+    
+    this.add.text(previewW - 15, previewY + 46, risk.label.toUpperCase(), {
+      fontFamily: 'Georgia, serif', fontSize: '11px', color: risk.color
+    }).setOrigin(1, 0);
+    
     // Weaknesses
-    if (this.enemyClass.weaknesses.length > 0) {
-      const weaknesses = this.enemyClass.weaknesses.map(w => w.type).join(', ');
-      this.add.text(safe.left + 15, previewY + 45, `⚠️ Weak to: ${weaknesses}`, {
+    if (enemy.weaknesses.length > 0) {
+      const weaknesses = enemy.weaknesses.slice(0, 2).map(w => w.type).join(', ');
+      this.add.text(safe.left + 15, previewY + 48, `⚠️ Weak to: ${weaknesses}`, {
         fontFamily: 'Georgia, serif', fontSize: '10px', color: '#6b8e23'
       });
     }
+    
+    // Tip
+    this.add.text(safe.left + 15, previewY + 68, risk.description, {
+      fontFamily: 'Georgia, serif', fontSize: '9px', color: '#5a4a3a'
+    });
   }
 
   private createBottomButtons(): void {
@@ -706,38 +743,16 @@ export class PrepareScene extends Phaser.Scene {
     const safe = getSafeArea();
     const btnY = anchorBottom(this, 40);
     
-    // Back button
-    const backBtn = this.add.container(safe.left + 70, btnY);
-    const backBg = this.add.graphics();
-    backBg.fillStyle(0x3a2a1a, 1);
-    backBg.fillRoundedRect(-60, -22, 120, 44, 5);
-    backBtn.add(backBg);
-    backBtn.add(this.add.text(0, 0, '← BACK', {
-      fontFamily: 'Georgia, serif', fontSize: '14px', color: '#8b7355'
-    }).setOrigin(0.5));
-    backBtn.setSize(120, 44);
-    backBtn.setInteractive();
-    backBtn.on('pointerdown', () => {
+    // Back button (using new Button component)
+    new Button(this, safe.left + 70, btnY, '← BACK', () => {
       this.cameras.main.fadeOut(200);
       this.cameras.main.once('camerafadeoutcomplete', () => {
         this.scene.start('CampScene');
       });
-    });
+    }, { width: 110, height: 44 });
     
-    // Fight button
-    const fightBtn = this.add.container(width - safe.right - 90, btnY);
-    const fightBg = this.add.graphics();
-    fightBg.fillStyle(0x5a2a1a, 1);
-    fightBg.fillRoundedRect(-80, -22, 160, 44, 5);
-    fightBg.lineStyle(2, 0xc9a959, 1);
-    fightBg.strokeRoundedRect(-80, -22, 160, 44, 5);
-    fightBtn.add(fightBg);
-    fightBtn.add(this.add.text(0, 0, '🗡️ ENTER ARENA', {
-      fontFamily: 'Georgia, serif', fontSize: '14px', color: '#c9a959'
-    }).setOrigin(0.5));
-    fightBtn.setSize(160, 44);
-    fightBtn.setInteractive();
-    fightBtn.on('pointerdown', () => {
+    // Fight button (using new Button component)
+    new Button(this, width - safe.right - 90, btnY, '🗡️ FIGHT', () => {
       // Save loadout
       SaveSystem.setLoadout(this.loadout);
       
@@ -745,7 +760,7 @@ export class PrepareScene extends Phaser.Scene {
       this.cameras.main.once('camerafadeoutcomplete', () => {
         this.scene.start('FightScene');
       });
-    });
+    }, { width: 150, height: 44, primary: true });
   }
 
   private refreshItemList(): void {

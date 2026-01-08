@@ -458,6 +458,27 @@ export interface LoadoutStats {
   critResist: number;
 }
 
+// Default stats for fresh recruits without gear
+export const DEFAULT_LOADOUT_STATS: LoadoutStats = {
+  damageMin: 5,
+  damageMax: 8,
+  lightStaminaCost: 10,
+  heavyStaminaCost: 22,
+  accuracyMod: 0,
+  critChanceMod: 0,
+  speedMod: 0,
+  totalDefense: 2,
+  staminaRegenMod: 0,
+  dodgeMod: 0,
+  weaponEffects: [],
+  armorPerks: [],
+  trinketEffects: [],
+  bleedResist: 0,
+  stunResist: 0,
+  poisonResist: 0,
+  critResist: 0
+};
+
 export function calculateLoadoutStats(
   inventory: ItemInstance[],
   loadout: Loadout
