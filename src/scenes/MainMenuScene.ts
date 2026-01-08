@@ -228,10 +228,15 @@ export class MainMenuScene extends Phaser.Scene {
   private continueRun(): void {
     this.cameras.main.fadeOut(300, 0, 0, 0);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      // Determine where to resume based on game state
+      // Resume at the run map (central hub)
       const run = SaveSystem.getRun();
-      if (run.fighter && run.lastCampAction === 'fight') {
-        this.scene.start('FightScene');
+      if (run.fighter) {
+        // If we have a run map, go there; otherwise go to camp
+        if (run.runMap) {
+          this.scene.start('RunMapScene');
+        } else {
+          this.scene.start('CampScene');
+        }
       } else {
         this.scene.start('CampScene');
       }

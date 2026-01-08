@@ -356,7 +356,8 @@ export class ResultsScene extends Phaser.Scene {
   private continue(): void {
     this.cameras.main.fadeOut(300);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start('CampScene');
+      // Return to run map after fight results
+      this.scene.start('RunMapScene');
     });
   }
 }

@@ -359,6 +359,9 @@ export class RunMapScene extends Phaser.Scene {
           // Could be a dedicated event scene
           this.scene.start('VignetteScene');
           break;
+        case 'camp':
+          this.scene.start('CampScene');
+          break;
         default:
           this.scene.start('CampScene');
       }

@@ -228,7 +228,8 @@ export class PromiseScene extends Phaser.Scene {
       yoyo: true,
       hold: 500,
       onComplete: () => {
-        this.scene.start('CampScene');
+        // Start with decree draft, then go to map
+        this.scene.start('DecreeDraftScene');
       }
     });
   }

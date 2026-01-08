@@ -363,7 +363,8 @@ export class ShopScene extends Phaser.Scene {
   private returnToCamp(): void {
     this.cameras.main.fadeOut(200);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start('CampScene');
+      // Return to run map after shopping
+      this.scene.start('RunMapScene');
     });
   }
 }

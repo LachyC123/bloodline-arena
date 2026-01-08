@@ -24,7 +24,11 @@ import {
   playerChooseAction as controllerChooseAction,
   endActionResolution,
   getDebugState,
-  updateCombatState
+  setPhase,
+  beginEnemyTurn,
+  endEnemyTurn,
+  getPhase,
+  CombatPhase
 } from '../systems/CombatController';
 import { UIHelper } from '../ui/UIHelper';
 import { AnimatedFighter, CombatVFXManager } from '../combat/CombatAnimator';
@@ -84,14 +88,18 @@ export class FightScene extends Phaser.Scene {
     this.vfx = new CombatVFXManager(this);
     this.isInputEnabled = true;
     
-    // Initialize combat controller
-    initCombatController(this, this.combatState, (enabled) => {
-      if (enabled) {
-        this.enableInput();
-      } else {
-        this.disableInput();
+    // Initialize combat controller with a getter to always get current state
+    initCombatController(
+      this, 
+      () => this.combatState,  // Getter ensures we always have current state
+      (enabled) => {
+        if (enabled) {
+          this.enableInput();
+        } else {
+          this.disableInput();
+        }
       }
-    });
+    );
     
     this.createBackground();
     this.createFighters();
@@ -107,14 +115,80 @@ export class FightScene extends Phaser.Scene {
     // If enemy goes first, start their turn after a delay
     if (this.combatState.turn === 'enemy') {
       this.showCombatMessage('Enemy strikes first!');
-      this.disableInput();
+      // Phase is already ENEMY_TURN from initCombatController
       this.time.delayedCall(1500, () => {
-        this.performEnemyTurn();
+        this.performEnemyTurnFromStart();
       });
     } else {
-      // Show player turn indicator
+      // Phase is already PLAYER_TURN from initCombatController
       this.showTurnIndicator('YOUR TURN');
     }
+  }
+  
+  /**
+   * Enemy turn when they go first (doesn't call nextTurn at start)
+   */
+  private async performEnemyTurnFromStart(): Promise<void> {
+    if (this.combatState.winner) {
+      setPhase('ENDED');
+      return;
+    }
+    
+    // Don't call nextTurn here - it's already enemy's turn
+    // Get AI decision
+    const aiType = (this.enemy.signatureTrait.id || 'balanced') as EnemyAIType;
+    const { action, targetZone } = getAIAction(this.combatState, aiType);
+    
+    // Show enemy intent briefly
+    const intentIcons: Record<CombatAction, string> = {
+      light_attack: '⚔️',
+      heavy_attack: '💥',
+      guard: '🛡️',
+      dodge: '💨',
+      special: '✨',
+      item: '🧪'
+    };
+    this.showCombatMessage(`Enemy prepares: ${intentIcons[action]}`);
+    
+    await this.delay(500);
+    
+    // Animate enemy action
+    await this.animateEnemyAction(action);
+    
+    // Execute game logic
+    const result = executeAction(this.combatState, 'enemy', action, targetZone);
+    this.showCombatMessage(result.message);
+    
+    // Show effects
+    if (result.damage > 0) {
+      const { width, height } = this.cameras.main;
+      this.vfx.showDamageNumber(width * 0.25, height * 0.4, result.damage, result.critical || false);
+      
+      if (result.damage > 20) {
+        this.shakeScreen();
+        await this.playerSprite.playStagger();
+      } else {
+        await this.playerSprite.playHit(result.damage);
+      }
+    }
+    
+    this.updateAllBars();
+    
+    // Check for combat end
+    if (this.combatState.winner) {
+      setPhase('ENDED');
+      await this.endCombat();
+      return;
+    }
+    
+    // Now switch to player turn
+    await this.delay(500);
+    nextTurn(this.combatState);
+    this.showTurnIndicator('YOUR TURN');
+    
+    // Signal transition to player turn
+    endEnemyTurn();
+    console.log('[Combat] Player turn started after enemy first, phase:', getPhase());
   }
   
   private showTurnIndicator(text: string): void {
@@ -565,7 +639,8 @@ export class FightScene extends Phaser.Scene {
   }
 
   private async performAction(action: CombatAction): Promise<void> {
-    console.log(`[Combat] performAction: ${action}, turn=${this.combatState.turn}, phase=${this.combatState.phase}, inputEnabled=${this.isInputEnabled}`);
+    const debugState = getDebugState();
+    console.log(`[Combat] performAction: ${action}, phase=${debugState.phase}, turn=${debugState.turn}, inputEnabled=${this.isInputEnabled}`);
     
     // Use centralized controller for validation
     const result = controllerChooseAction(action, this.selectedZone);
@@ -584,9 +659,6 @@ export class FightScene extends Phaser.Scene {
       // Execute game logic
       const actionResult = executeAction(this.combatState, 'player', action, this.selectedZone);
       console.log('[Combat] Action result:', actionResult);
-      
-      // Update controller with new state
-      updateCombatState(this.combatState);
       
       // Show result
       this.showCombatMessage(actionResult.message);
@@ -613,6 +685,7 @@ export class FightScene extends Phaser.Scene {
       
       // Check for combat end
       if (this.combatState.winner) {
+        setPhase('ENDED');
         await this.endCombat();
         return;
       }
@@ -624,10 +697,10 @@ export class FightScene extends Phaser.Scene {
     } catch (error) {
       console.error('[Combat] Error during action:', error);
       this.showCombatMessage('Action failed!');
-    } finally {
-      // ALWAYS end resolution to prevent softlock
+      // On error, force back to player turn
       endActionResolution();
     }
+    // Note: endActionResolution is NOT called here - it's called at end of performEnemyTurn
   }
   
   private async animatePlayerAction(action: CombatAction): Promise<void> {
@@ -665,8 +738,13 @@ export class FightScene extends Phaser.Scene {
   }
 
   private async performEnemyTurn(): Promise<void> {
-    if (this.combatState.winner) return;
+    if (this.combatState.winner) {
+      setPhase('ENDED');
+      return;
+    }
     
+    // Signal enemy turn start
+    beginEnemyTurn();
     nextTurn(this.combatState);
     this.roundText.setText(`ROUND ${this.combatState.round}`);
     
@@ -719,6 +797,7 @@ export class FightScene extends Phaser.Scene {
     
     // Check for combat end
     if (this.combatState.winner) {
+      setPhase('ENDED');
       await this.endCombat();
       return;
     }
@@ -727,8 +806,10 @@ export class FightScene extends Phaser.Scene {
     await this.delay(500);
     nextTurn(this.combatState);
     this.showTurnIndicator('YOUR TURN');
-    this.enableInput();
-    console.log('[Combat] Player turn started, input enabled');
+    
+    // Signal end of enemy turn / resolution complete
+    endEnemyTurn();
+    console.log('[Combat] Player turn started, phase:', getPhase());
   }
   
   private async animateEnemyAction(action: CombatAction): Promise<void> {

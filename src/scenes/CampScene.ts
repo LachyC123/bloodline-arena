@@ -53,12 +53,6 @@ export class CampScene extends Phaser.Scene {
       return;
     }
     
-    // Check if decree draft is needed (first time entering camp)
-    if (!SaveSystem.isDecreeDraftCompleted() && run.week === 0) {
-      this.scene.start('DecreeDraftScene');
-      return;
-    }
-    
     this.fighter = run.fighter;
     this.gold = run.gold;
     this.week = run.week;
@@ -865,8 +859,8 @@ export class CampScene extends Phaser.Scene {
     barFill.fillStyle(0xc9a959, 1);
     barFill.fillRoundedRect(safe.left, barY, barWidth * (run.fightsInLeague / run.fightsToNextLeague), 8, 3);
     
-    // FIGHT button
-    new Button(this, width / 2, anchorBottom(this, 35), '🗡️ ENTER ARENA', () => this.enterArena(), {
+    // MAP button
+    new Button(this, width / 2, anchorBottom(this, 35), '🗺️ VIEW MAP', () => this.enterArena(), {
       width: Math.min(220, width - 80),
       height: 52,
       fontSize: 15,
@@ -958,8 +952,8 @@ export class CampScene extends Phaser.Scene {
       lastCampAction: 'fight'
     });
     
-    // Use enhanced transition for fight preparation
-    transitionToScene(this, 'PrepareScene', 'wipe', 350);
+    // Go to run map to select destination
+    transitionToScene(this, 'RunMapScene', 'wipe', 350);
   }
 
   private checkGhostMoments(): void {
