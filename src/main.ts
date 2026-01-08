@@ -25,6 +25,11 @@ import { PrepareScene } from './scenes/PrepareScene';
 import { CharacterSheetScene } from './scenes/CharacterSheetScene';
 import { CustomizeScene } from './scenes/CustomizeScene';
 import { DecreeDraftScene } from './scenes/DecreeDraftScene';
+import { ForgeScene } from './scenes/ForgeScene';
+import { WeaponMasteryScene } from './scenes/WeaponMasteryScene';
+import { RunMapScene } from './scenes/RunMapScene';
+import { CodexScene } from './scenes/CodexScene';
+import { RunSummaryScene } from './scenes/RunSummaryScene';
 
 // Calculate game dimensions for mobile-first design
 const getGameConfig = (): Phaser.Types.Core.GameConfig => {
@@ -91,7 +96,12 @@ const getGameConfig = (): Phaser.Types.Core.GameConfig => {
       PrepareScene,
       CharacterSheetScene,
       CustomizeScene,
-      DecreeDraftScene
+      DecreeDraftScene,
+      ForgeScene,
+      WeaponMasteryScene,
+      RunMapScene,
+      CodexScene,
+      RunSummaryScene
     ],
     physics: {
       default: 'arcade',

@@ -827,6 +827,17 @@ export class CampScene extends Phaser.Scene {
       height: buttonHeight,
       primary: seals > 0
     });
+    
+    // Row 3: FORGE and MASTERY
+    new Button(this, leftX, startY + (buttonHeight + spacing) * 2, '🔥 FORGE', () => this.goToForge(), {
+      width: buttonWidth,
+      height: buttonHeight
+    });
+    
+    new Button(this, rightX, startY + (buttonHeight + spacing) * 2, '🌟 MASTERY', () => this.goToMastery(), {
+      width: buttonWidth,
+      height: buttonHeight
+    });
   }
   
   private createBottomBar(): void {
@@ -890,6 +901,28 @@ export class CampScene extends Phaser.Scene {
     this.cameras.main.fadeOut(200);
     this.cameras.main.once('camerafadeoutcomplete', () => {
       this.scene.start('ShopScene');
+    });
+  }
+  
+  private goToForge(): void {
+    SaveSystem.updateRun({ lastCampAction: 'forge' });
+    this.cameras.main.fadeOut(200);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.start('ForgeScene');
+    });
+  }
+  
+  private goToCharacterSheet(): void {
+    this.cameras.main.fadeOut(200);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.start('CharacterSheetScene');
+    });
+  }
+  
+  private goToMastery(): void {
+    this.cameras.main.fadeOut(200);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.start('WeaponMasteryScene');
     });
   }
 
