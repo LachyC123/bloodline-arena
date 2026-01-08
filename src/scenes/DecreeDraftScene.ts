@@ -321,7 +321,7 @@ export class DecreeDraftScene extends Phaser.Scene {
         this.time.delayedCall(800, () => {
           this.cameras.main.fadeOut(300);
           this.cameras.main.once('camerafadeoutcomplete', () => {
-            this.scene.start('CampScene');
+            this.scene.start('RunMapScene');
           });
         });
       }
@@ -333,7 +333,7 @@ export class DecreeDraftScene extends Phaser.Scene {
     
     this.cameras.main.fadeOut(300);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start('CampScene');
+      this.scene.start('RunMapScene');
     });
   }
 }

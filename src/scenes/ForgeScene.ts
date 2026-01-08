@@ -610,7 +610,8 @@ export class ForgeScene extends Phaser.Scene {
   private returnToCamp(): void {
     this.cameras.main.fadeOut(200);
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start('CampScene');
+      // Return to run map
+      this.scene.start('RunMapScene');
     });
   }
 }

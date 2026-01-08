@@ -1,30 +1,35 @@
 /**
  * CombatController - Centralized combat action handling
  * All combat actions route through here to prevent softlocks
+ * 
+ * Turn State Machine:
+ * - INIT: Combat just started, setup in progress
+ * - PLAYER_TURN: Player can act
+ * - RESOLVING: An action is being animated/processed
+ * - ENEMY_TURN: Enemy is acting
+ * - ENDED: Combat is over
  */
 
-import { CombatState, CombatAction, TargetZone, executeAction, nextTurn } from './CombatSystem';
+import { CombatState, CombatAction, TargetZone, nextTurn } from './CombatSystem';
 import { SaveSystem } from './SaveSystem';
 
-// Combat controller state
-interface CombatControllerState {
+export type CombatPhase = 'INIT' | 'PLAYER_TURN' | 'RESOLVING' | 'ENEMY_TURN' | 'ENDED';
+
+// Combat controller state - now uses a getter for combatState to ensure freshness
+interface CombatControllerInstance {
   scene: Phaser.Scene | null;
-  combatState: CombatState | null;
-  isResolvingAction: boolean;
-  actionQueue: CombatAction[];
-  resolutionStartTime: number;
-  onActionComplete: (() => void) | null;
+  getCombatState: (() => CombatState | null) | null;
+  phase: CombatPhase;
+  lastPhaseChangeTime: number;
   onInputStateChange: ((enabled: boolean) => void) | null;
   debugMode: boolean;
 }
 
-const state: CombatControllerState = {
+let instance: CombatControllerInstance = {
   scene: null,
-  combatState: null,
-  isResolvingAction: false,
-  actionQueue: [],
-  resolutionStartTime: 0,
-  onActionComplete: null,
+  getCombatState: null,
+  phase: 'INIT',
+  lastPhaseChangeTime: 0,
   onInputStateChange: null,
   debugMode: false
 };
@@ -35,27 +40,37 @@ let softlockCheckInterval: number | null = null;
 
 /**
  * Initialize controller for a combat scene
+ * Uses a getter function to always get the current combat state
  */
 export function initCombatController(
   scene: Phaser.Scene,
-  combatState: CombatState,
+  getCombatState: () => CombatState,
   onInputStateChange: (enabled: boolean) => void
 ): void {
-  state.scene = scene;
-  state.combatState = combatState;
-  state.isResolvingAction = false;
-  state.actionQueue = [];
-  state.resolutionStartTime = 0;
-  state.onInputStateChange = onInputStateChange;
-  state.debugMode = SaveSystem.getSettings().debugMode || false;
+  // Clean up any previous instance
+  destroyCombatController();
+  
+  instance = {
+    scene,
+    getCombatState,
+    phase: 'INIT',
+    lastPhaseChangeTime: Date.now(),
+    onInputStateChange,
+    debugMode: SaveSystem.getSettings().debugMode || false
+  };
   
   // Start softlock check
-  if (softlockCheckInterval) {
-    clearInterval(softlockCheckInterval);
-  }
   softlockCheckInterval = window.setInterval(checkForSoftlock, 1000);
   
-  log('Combat controller initialized');
+  log(`Combat controller initialized, initial turn: ${getCombatState().turn}`);
+  
+  // Transition to appropriate phase based on initial turn
+  const combatState = getCombatState();
+  if (combatState.turn === 'player') {
+    setPhase('PLAYER_TURN');
+  } else {
+    setPhase('ENEMY_TURN');
+  }
 }
 
 /**
@@ -66,37 +81,75 @@ export function destroyCombatController(): void {
     clearInterval(softlockCheckInterval);
     softlockCheckInterval = null;
   }
-  state.scene = null;
-  state.combatState = null;
-  state.isResolvingAction = false;
-  state.actionQueue = [];
+  instance = {
+    scene: null,
+    getCombatState: null,
+    phase: 'INIT',
+    lastPhaseChangeTime: 0,
+    onInputStateChange: null,
+    debugMode: false
+  };
 }
 
 /**
- * Update combat state reference (after mutations)
+ * Set the current phase
  */
-export function updateCombatState(combatState: CombatState): void {
-  state.combatState = combatState;
+export function setPhase(newPhase: CombatPhase): void {
+  const oldPhase = instance.phase;
+  instance.phase = newPhase;
+  instance.lastPhaseChangeTime = Date.now();
+  
+  log(`Phase: ${oldPhase} -> ${newPhase}`);
+  
+  // Enable/disable input based on phase
+  if (instance.onInputStateChange) {
+    const shouldEnableInput = newPhase === 'PLAYER_TURN';
+    instance.onInputStateChange(shouldEnableInput);
+  }
+}
+
+/**
+ * Get current phase
+ */
+export function getPhase(): CombatPhase {
+  return instance.phase;
 }
 
 /**
  * Check if player can take an action
  */
 export function canPlayerAct(): { canAct: boolean; reason: string } {
-  if (!state.combatState) {
+  const combatState = instance.getCombatState?.();
+  
+  if (!combatState) {
     return { canAct: false, reason: 'No combat state' };
   }
   
-  if (state.isResolvingAction) {
-    return { canAct: false, reason: 'Action in progress' };
+  // Check phase first (our explicit state machine)
+  switch (instance.phase) {
+    case 'INIT':
+      return { canAct: false, reason: 'Starting...' };
+    case 'RESOLVING':
+      return { canAct: false, reason: 'Resolving...' };
+    case 'ENEMY_TURN':
+      return { canAct: false, reason: 'Enemy turn' };
+    case 'ENDED':
+      return { canAct: false, reason: 'Combat ended' };
+    case 'PLAYER_TURN':
+      // Continue to additional checks
+      break;
   }
   
-  if (state.combatState.turn !== 'player') {
-    return { canAct: false, reason: 'Not player turn' };
-  }
-  
-  if (state.combatState.phase === 'end') {
+  // Also check the underlying combat state for safety
+  if (combatState.winner) {
+    setPhase('ENDED');
     return { canAct: false, reason: 'Combat ended' };
+  }
+  
+  if (combatState.turn !== 'player') {
+    // Sync phase with actual state
+    setPhase('ENEMY_TURN');
+    return { canAct: false, reason: 'Not player turn' };
   }
   
   return { canAct: true, reason: 'OK' };
@@ -106,7 +159,8 @@ export function canPlayerAct(): { canAct: boolean; reason: string } {
  * Check stamina requirement
  */
 export function hasEnoughStamina(action: CombatAction): boolean {
-  if (!state.combatState) return false;
+  const combatState = instance.getCombatState?.();
+  if (!combatState) return false;
   
   const costs: Record<CombatAction, number> = {
     light_attack: 10,
@@ -117,7 +171,7 @@ export function hasEnoughStamina(action: CombatAction): boolean {
     item: 0
   };
   
-  return state.combatState.player.currentStamina >= costs[action];
+  return combatState.player.currentStamina >= costs[action];
 }
 
 /**
@@ -130,7 +184,7 @@ export function playerChooseAction(
 ): { success: boolean; reason: string } {
   const check = canPlayerAct();
   
-  log(`playerChooseAction: ${action}, canAct=${check.canAct}, reason=${check.reason}`);
+  log(`playerChooseAction: ${action}, phase=${instance.phase}, canAct=${check.canAct}, reason=${check.reason}`);
   
   if (!check.canAct) {
     return { success: false, reason: check.reason };
@@ -140,7 +194,8 @@ export function playerChooseAction(
     return { success: false, reason: 'Not enough stamina' };
   }
   
-  if (action === 'special' && state.combatState!.player.currentFocus < 30) {
+  const combatState = instance.getCombatState?.();
+  if (action === 'special' && combatState && combatState.player.currentFocus < 30) {
     return { success: false, reason: 'Not enough focus' };
   }
   
@@ -154,35 +209,55 @@ export function playerChooseAction(
  * Begin action resolution (disables input)
  */
 function beginActionResolution(): void {
-  state.isResolvingAction = true;
-  state.resolutionStartTime = Date.now();
-  
-  if (state.onInputStateChange) {
-    state.onInputStateChange(false);
-  }
-  
+  setPhase('RESOLVING');
   log('Action resolution started');
 }
 
 /**
- * End action resolution (re-enables input if player's turn)
- * MUST be called in a finally block
+ * Called when player's action and enemy response are complete
+ * Switches back to player turn
  */
 export function endActionResolution(): void {
-  state.isResolvingAction = false;
-  state.resolutionStartTime = 0;
+  const combatState = instance.getCombatState?.();
   
   log('Action resolution ended');
   
-  // Re-enable input if it's player's turn and combat isn't over
-  if (state.combatState && 
-      state.combatState.turn === 'player' && 
-      state.combatState.phase !== 'end' &&
-      !state.combatState.winner) {
-    if (state.onInputStateChange) {
-      state.onInputStateChange(true);
-    }
+  // Check if combat is over
+  if (combatState?.winner) {
+    setPhase('ENDED');
+    return;
   }
+  
+  // Check if it should be player's turn now
+  if (combatState?.turn === 'player') {
+    setPhase('PLAYER_TURN');
+  } else {
+    setPhase('ENEMY_TURN');
+  }
+}
+
+/**
+ * Called when starting enemy turn
+ */
+export function beginEnemyTurn(): void {
+  setPhase('ENEMY_TURN');
+  log('Enemy turn started');
+}
+
+/**
+ * Called when enemy turn ends and it's player's turn again
+ */
+export function endEnemyTurn(): void {
+  const combatState = instance.getCombatState?.();
+  
+  log('Enemy turn ended');
+  
+  if (combatState?.winner) {
+    setPhase('ENDED');
+    return;
+  }
+  
+  setPhase('PLAYER_TURN');
 }
 
 /**
@@ -190,17 +265,19 @@ export function endActionResolution(): void {
  */
 export function forceEndResolution(): void {
   console.error('[CombatController] FORCE ending resolution (softlock detected)');
-  state.isResolvingAction = false;
-  state.resolutionStartTime = 0;
+  console.error('[CombatController] Current state:', getDebugState());
   
-  // Advance to next turn if stuck
-  if (state.combatState && state.combatState.phase !== 'end') {
-    nextTurn(state.combatState);
-  }
+  const combatState = instance.getCombatState?.();
   
-  // Re-enable input
-  if (state.onInputStateChange) {
-    state.onInputStateChange(true);
+  // Force to player turn unless combat is over
+  if (combatState?.winner) {
+    setPhase('ENDED');
+  } else {
+    // Force switch to player turn
+    if (combatState) {
+      combatState.turn = 'player';
+    }
+    setPhase('PLAYER_TURN');
   }
 }
 
@@ -208,11 +285,11 @@ export function forceEndResolution(): void {
  * Check for softlock condition
  */
 function checkForSoftlock(): void {
-  if (!state.isResolvingAction) return;
+  if (instance.phase !== 'RESOLVING') return;
   
-  const elapsed = Date.now() - state.resolutionStartTime;
+  const elapsed = Date.now() - instance.lastPhaseChangeTime;
   if (elapsed > SOFTLOCK_TIMEOUT) {
-    console.error(`[CombatController] Softlock detected! Resolution stuck for ${elapsed}ms`);
+    console.error(`[CombatController] Softlock detected! Phase RESOLVING for ${elapsed}ms`);
     forceEndResolution();
   }
 }
@@ -221,22 +298,24 @@ function checkForSoftlock(): void {
  * Get current controller state for debug display
  */
 export function getDebugState(): {
-  isResolvingAction: boolean;
+  phase: CombatPhase;
   turn: string;
-  phase: string;
+  combatPhase: string;
   playerHP: number;
   enemyHP: number;
-  actionQueueLength: number;
-  resolutionTime: number;
+  timeSincePhaseChange: number;
+  winner: string | null;
 } {
+  const combatState = instance.getCombatState?.();
+  
   return {
-    isResolvingAction: state.isResolvingAction,
-    turn: state.combatState?.turn || 'none',
-    phase: state.combatState?.phase || 'none',
-    playerHP: state.combatState?.player.currentHP || 0,
-    enemyHP: state.combatState?.enemy.currentHP || 0,
-    actionQueueLength: state.actionQueue.length,
-    resolutionTime: state.isResolvingAction ? Date.now() - state.resolutionStartTime : 0
+    phase: instance.phase,
+    turn: combatState?.turn || 'none',
+    combatPhase: combatState?.phase || 'none',
+    playerHP: combatState?.player.currentHP || 0,
+    enemyHP: combatState?.enemy.currentHP || 0,
+    timeSincePhaseChange: Date.now() - instance.lastPhaseChangeTime,
+    winner: combatState?.winner || null
   };
 }
 
@@ -244,7 +323,7 @@ export function getDebugState(): {
  * Debug logging
  */
 function log(message: string): void {
-  if (state.debugMode) {
+  if (instance.debugMode) {
     console.log(`[CombatController] ${message}`);
   }
 }

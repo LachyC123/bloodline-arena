@@ -3,7 +3,7 @@
  * Each league segment generates a map of connected nodes
  */
 
-export type NodeType = 'fight' | 'elite' | 'shop' | 'clinic' | 'event' | 'forge' | 'rival' | 'champion';
+export type NodeType = 'fight' | 'elite' | 'shop' | 'clinic' | 'event' | 'forge' | 'rival' | 'champion' | 'camp';
 
 export interface MapNode {
   id: string;
@@ -35,7 +35,8 @@ export const NODE_CONFIGS: Record<NodeType, { icon: string; name: string; descri
   event: { icon: '❓', name: 'Event', description: 'A mysterious encounter' },
   forge: { icon: '🔥', name: 'Forge', description: 'Upgrade equipment' },
   rival: { icon: '👊', name: 'Rival', description: 'Face your nemesis' },
-  champion: { icon: '👑', name: 'Champion', description: 'League boss battle' }
+  champion: { icon: '👑', name: 'Champion', description: 'League boss battle' },
+  camp: { icon: '🏕️', name: 'Camp', description: 'Rest, train, and prepare' }
 };
 
 // League-specific generation parameters
