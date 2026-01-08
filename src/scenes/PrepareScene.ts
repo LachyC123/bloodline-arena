@@ -29,7 +29,7 @@ import {
 import { WeaponData, WEAPON_TYPE_INFO } from '../data/WeaponsData';
 import { ArmorData, ARMOR_SLOT_INFO } from '../data/ArmorData';
 import { getEnemyClass, rollEnemyClass, EnemyClass } from '../data/EnemyClassData';
-import { calculatePower, calculateEnemyPower, formatPower, getTierColor, getFightRisk } from '../systems/PowerScore';
+import { calculatePower, calculateEnemyPower, formatPower, getTierColor, getFightRisk, getPowerAssessment } from '../systems/PowerScore';
 
 type InventoryTab = 'weapons' | 'armor' | 'trinkets' | 'consumables';
 
@@ -707,13 +707,14 @@ export class PrepareScene extends Phaser.Scene {
     
     // Power comparison
     const playerPower = calculatePower(this.fighter);
+    const assessment = getPowerAssessment(playerPower);
     
     // Estimate enemy power (based on class modifiers and league)
-    const baseEnemyPower = playerPower.power * (0.85 + Math.random() * 0.3);
+    const baseEnemyPower = playerPower.expectedPower * (0.9 + Math.random() * 0.2);
     const risk = getFightRisk(playerPower.power, baseEnemyPower);
     
     this.add.text(previewW - 15, previewY + 10, `⚡ ${formatPower(playerPower.power)}`, {
-      fontFamily: 'Georgia, serif', fontSize: '11px', color: getTierColor(playerPower.tier)
+      fontFamily: 'Georgia, serif', fontSize: '11px', color: assessment.color
     }).setOrigin(1, 0);
     
     this.add.text(previewW - 15, previewY + 28, `vs ~${formatPower(Math.round(baseEnemyPower))}`, {

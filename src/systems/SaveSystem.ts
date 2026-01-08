@@ -13,7 +13,7 @@ import { Wound } from '../data/IntensityMechanics';
 import { EnemyClassId } from '../data/EnemyClassData';
 
 // Current save version - increment when adding breaking changes
-const SAVE_VERSION = 4;
+const SAVE_VERSION = 5;
 
 // Save data structure
 // Training history entry for stat delta display
@@ -110,6 +110,29 @@ export interface RunState {
   // Training history for stat delta display
   trainingHistory: TrainingHistoryEntry[];
   lastFightResult: FightHistoryEntry | null;
+  
+  // Customization (v5)
+  customization: {
+    philosophyId: string | null;
+    backgroundId: string | null;
+    startingTechniqueId: string | null;
+    cosmetics: {
+      firstName: string;
+      lastName: string;
+      nickname: string;
+      faceIndex: number;
+      eyeIndex: number;
+      hairIndex: number;
+      beardIndex: number;
+      scarIndex: number;
+      warpaintIndex: number;
+      hoodIndex: number;
+      skinTone: string;
+      hairColor: string;
+      eyeColor: string;
+      accentColor: string;
+    };
+  };
 }
 
 export interface MetaProgression {
@@ -247,7 +270,29 @@ const DEFAULT_RUN: RunState = {
   adrenalineUsed: false,
   seenEnemyClasses: [],
   trainingHistory: [],
-  lastFightResult: null
+  lastFightResult: null,
+  // New v5 fields - customization
+  customization: {
+    philosophyId: null,
+    backgroundId: null,
+    startingTechniqueId: null,
+    cosmetics: {
+      firstName: '',
+      lastName: '',
+      nickname: '',
+      faceIndex: 0,
+      eyeIndex: 0,
+      hairIndex: 0,
+      beardIndex: 0,
+      scarIndex: 0,
+      warpaintIndex: 0,
+      hoodIndex: 0,
+      skinTone: '#d4a574',
+      hairColor: '#3d2314',
+      eyeColor: '#5a4a3a',
+      accentColor: '#8b0000'
+    }
+  }
 };
 
 const DEFAULT_META: MetaProgression = {
@@ -447,6 +492,39 @@ class SaveSystemClass {
       };
       
       data.version = 4;
+    }
+    
+    // Version 4 -> 5: Add customization system
+    if (data.version === 4) {
+      console.log('Migrating v4 -> v5: Adding customization system');
+      
+      // Add default customization to existing runs
+      data.run = {
+        ...data.run,
+        customization: {
+          philosophyId: null,
+          backgroundId: null,
+          startingTechniqueId: null,
+          cosmetics: {
+            firstName: data.run.fighter?.firstName || '',
+            lastName: data.run.fighter?.lastName || '',
+            nickname: data.run.fighter?.nickname || '',
+            faceIndex: data.run.fighter?.portrait?.baseIndex || 0,
+            eyeIndex: data.run.fighter?.portrait?.eyeIndex || 0,
+            hairIndex: data.run.fighter?.portrait?.hairIndex || 0,
+            beardIndex: data.run.fighter?.portrait?.beardIndex || 0,
+            scarIndex: data.run.fighter?.portrait?.scarIndex || 0,
+            warpaintIndex: 0,
+            hoodIndex: 0,
+            skinTone: data.run.fighter?.portrait?.skinTone || '#d4a574',
+            hairColor: data.run.fighter?.portrait?.hairColor || '#3d2314',
+            eyeColor: '#5a4a3a',
+            accentColor: '#8b0000'
+          }
+        }
+      };
+      
+      data.version = 5;
     }
     
     // Apply merged defaults and save
@@ -1052,6 +1130,80 @@ class SaveSystemClass {
     const starterItems = getStarterItems();
     this.data.run.inventory = starterItems;
     this.data.run.loadout = getDefaultLoadout(starterItems);
+    this.save();
+  }
+
+  // ========== CUSTOMIZATION ==========
+  
+  getCustomization(): RunState['customization'] {
+    return { ...this.data.run.customization };
+  }
+
+  setCustomization(customization: Partial<RunState['customization']>): void {
+    this.data.run.customization = {
+      ...this.data.run.customization,
+      ...customization,
+      cosmetics: {
+        ...this.data.run.customization.cosmetics,
+        ...(customization.cosmetics || {})
+      }
+    };
+    this.save();
+  }
+
+  setPhilosophy(philosophyId: string | null): void {
+    this.data.run.customization.philosophyId = philosophyId;
+    this.save();
+  }
+
+  setBackground(backgroundId: string | null): void {
+    this.data.run.customization.backgroundId = backgroundId;
+    this.save();
+  }
+
+  setStartingTechnique(techniqueId: string | null): void {
+    this.data.run.customization.startingTechniqueId = techniqueId;
+    this.save();
+  }
+
+  setCosmetics(cosmetics: Partial<RunState['customization']['cosmetics']>): void {
+    this.data.run.customization.cosmetics = {
+      ...this.data.run.customization.cosmetics,
+      ...cosmetics
+    };
+    this.save();
+  }
+
+  getCosmetics(): RunState['customization']['cosmetics'] {
+    return { ...this.data.run.customization.cosmetics };
+  }
+
+  // Apply customization to fighter on run start
+  applyCustomizationToFighter(): void {
+    const fighter = this.data.run.fighter;
+    if (!fighter) return;
+
+    const customization = this.data.run.customization;
+    const cosmetics = customization.cosmetics;
+
+    // Apply name changes
+    if (cosmetics.firstName) fighter.firstName = cosmetics.firstName;
+    if (cosmetics.lastName) fighter.lastName = cosmetics.lastName;
+    if (cosmetics.nickname) fighter.nickname = cosmetics.nickname;
+    fighter.fullName = `${fighter.firstName} ${fighter.lastName}`;
+
+    // Apply portrait changes
+    fighter.portrait = {
+      ...fighter.portrait,
+      baseIndex: cosmetics.faceIndex,
+      eyeIndex: cosmetics.eyeIndex,
+      hairIndex: cosmetics.hairIndex,
+      beardIndex: cosmetics.beardIndex,
+      scarIndex: cosmetics.scarIndex,
+      skinTone: cosmetics.skinTone,
+      hairColor: cosmetics.hairColor
+    };
+
     this.save();
   }
 }

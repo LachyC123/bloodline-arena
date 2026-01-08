@@ -11,7 +11,7 @@ import { UIHelper } from '../ui/UIHelper';
 import { PortraitRenderer } from '../ui/PortraitRenderer';
 import { Button, IconButton } from '../ui/Button';
 import { getSafeArea, getContentArea, anchorBottom, MIN_TOUCH_SIZE } from '../ui/Layout';
-import { calculatePower, formatPower, getTierColor, PowerResult, getPowerDelta } from '../systems/PowerScore';
+import { calculatePower, formatPower, getTierColor, PowerResult, getPowerDelta, getPowerAssessment } from '../systems/PowerScore';
 import { 
   getItemName, 
   getItemIcon, 
@@ -212,25 +212,27 @@ export class CampScene extends Phaser.Scene {
     const powerY = safe.top + 50;
     
     // Background panel
+    const assessment = getPowerAssessment(this.powerResult);
+    
     const powerBg = this.add.graphics();
     powerBg.fillStyle(0x1a1510, 0.9);
-    powerBg.fillRoundedRect(width / 2 - 60, powerY - 12, 120, 32, 6);
+    powerBg.fillRoundedRect(width / 2 - 70, powerY - 12, 140, 32, 6);
     powerBg.lineStyle(1, 0x5a4a3a, 0.8);
-    powerBg.strokeRoundedRect(width / 2 - 60, powerY - 12, 120, 32, 6);
+    powerBg.strokeRoundedRect(width / 2 - 70, powerY - 12, 140, 32, 6);
     
     // Power icon and value
-    this.add.text(width / 2 - 45, powerY, '⚡', { fontSize: '16px' }).setOrigin(0, 0.5);
+    this.add.text(width / 2 - 55, powerY, '⚡', { fontSize: '16px' }).setOrigin(0, 0.5);
     
-    this.powerText = this.add.text(width / 2 - 20, powerY - 2, `POWER: ${formatPower(this.powerResult.power)}`, {
+    this.powerText = this.add.text(width / 2 - 30, powerY - 2, `POWER: ${formatPower(this.powerResult.power)}`, {
       fontFamily: 'Georgia, serif',
       fontSize: '12px',
-      color: getTierColor(this.powerResult.tier)
+      color: assessment.color
     }).setOrigin(0, 0.5);
     
-    this.add.text(width / 2 - 20, powerY + 12, this.powerResult.tier.toUpperCase(), {
+    this.add.text(width / 2 - 30, powerY + 12, assessment.label.toUpperCase(), {
       fontFamily: 'Georgia, serif',
       fontSize: '8px',
-      color: '#5a4a3a'
+      color: assessment.color
     }).setOrigin(0, 0.5);
     
     // Make tappable for breakdown
@@ -271,8 +273,15 @@ export class CampScene extends Phaser.Scene {
       fontFamily: 'Georgia, serif', fontSize: '14px', color: '#c9a959'
     }).setOrigin(0.5));
     
+    const assessment = getPowerAssessment(this.powerResult);
+    
     modal.add(this.add.text(0, -modalH / 2 + 45, `Total: ${formatPower(this.powerResult.power)}`, {
-      fontFamily: 'Georgia, serif', fontSize: '18px', color: getTierColor(this.powerResult.tier)
+      fontFamily: 'Georgia, serif', fontSize: '18px', color: assessment.color
+    }).setOrigin(0.5));
+    
+    // Expected power comparison
+    modal.add(this.add.text(0, -modalH / 2 + 65, `${assessment.label} · ${assessment.vsExpected}`, {
+      fontFamily: 'Georgia, serif', fontSize: '10px', color: assessment.color
     }).setOrigin(0.5));
     
     // Category breakdown
@@ -388,6 +397,12 @@ export class CampScene extends Phaser.Scene {
     const hitArea = this.add.rectangle(width * 0.5, fighterY, portraitSize + 30, portraitSize + 30, 0x000000, 0);
     hitArea.setInteractive({ useHandCursor: true });
     hitArea.on('pointerdown', () => this.showCharacterInfo());
+    
+    // Customize button (small icon near portrait)
+    const customizeBtn = new IconButton(this, width * 0.5 + portraitSize / 2 + 20, fighterY, '🎨', () => {
+      this.goToCustomize();
+    }, 36);
+    customizeBtn.setDepth(5);
   }
 
   private createEquipmentPanel(): void {
@@ -754,6 +769,13 @@ export class CampScene extends Phaser.Scene {
     this.cameras.main.fadeOut(200);
     this.cameras.main.once('camerafadeoutcomplete', () => {
       this.scene.start('CharacterSheetScene');
+    });
+  }
+
+  private goToCustomize(): void {
+    this.cameras.main.fadeOut(200);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.start('CustomizeScene');
     });
   }
 
