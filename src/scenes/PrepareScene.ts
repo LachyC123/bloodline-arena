@@ -742,10 +742,33 @@ export class PrepareScene extends Phaser.Scene {
       });
     }
     
-    // Tip
-    this.add.text(safe.left + 15, previewY + 68, risk.description, {
-      fontFamily: 'Georgia, serif', fontSize: '9px', color: '#5a4a3a'
-    });
+    // Mutator warning based on league
+    const mutatorWarning = this.getMutatorWarning(run.league);
+    if (mutatorWarning) {
+      this.add.text(previewW / 2, previewY + 68, mutatorWarning, {
+        fontFamily: 'Georgia, serif', fontSize: '9px', color: '#cd5c5c'
+      }).setOrigin(0.5);
+    } else {
+      // Tip
+      this.add.text(safe.left + 15, previewY + 68, risk.description, {
+        fontFamily: 'Georgia, serif', fontSize: '9px', color: '#5a4a3a'
+      });
+    }
+  }
+  
+  private getMutatorWarning(league: string): string | null {
+    switch (league) {
+      case 'bronze':
+        return '⚠️ Some enemies may have mutations';
+      case 'silver':
+        return '⚠️ Enemies always have a mutation';
+      case 'gold':
+        return '⚠️ Enemies may have multiple mutations';
+      case 'champion':
+        return '💀 Elite enemies with powerful mutations';
+      default:
+        return null;
+    }
   }
 
   private createBottomButtons(): void {

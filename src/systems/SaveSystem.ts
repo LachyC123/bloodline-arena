@@ -13,7 +13,7 @@ import { Wound } from '../data/IntensityMechanics';
 import { EnemyClassId } from '../data/EnemyClassData';
 
 // Current save version - increment when adding breaking changes
-const SAVE_VERSION = 5;
+const SAVE_VERSION = 6;
 
 // Save data structure
 // Training history entry for stat delta display
@@ -74,8 +74,17 @@ export interface RunState {
   relics: string[];  // Relic IDs
   relicPityCounter: number;
   
-  // Run modifiers (daily oath)
+  // Run modifiers (daily oath) - legacy
   activeModifiers: string[];
+  
+  // Arena Decrees (v6) - stackable run modifiers
+  activeDecreeIds: string[];
+  decreeDraftCompleted: boolean;  // Has player done initial decree draft?
+  seenDecreeIds: string[];  // Track which decrees player has seen (for "new" badge)
+  
+  // Seen affixes/mutators (v6) - for "new" badge
+  seenAffixIds: string[];
+  seenMutatorIds: string[];
   
   // Milestone tracking
   fightsSinceRelic: number;
@@ -253,6 +262,12 @@ const DEFAULT_RUN: RunState = {
   relics: [],
   relicPityCounter: 0,
   activeModifiers: [],
+  // v6 decree/affix/mutator tracking
+  activeDecreeIds: [],
+  decreeDraftCompleted: false,
+  seenDecreeIds: [],
+  seenAffixIds: [],
+  seenMutatorIds: [],
   fightsSinceRelic: 0,
   consecutiveWins: 0,
   debt: 0,
@@ -527,6 +542,22 @@ class SaveSystemClass {
       };
       
       data.version = 5;
+    }
+    
+    // Version 5 -> 6: Add affixes, decrees, mutators tracking
+    if (data.version === 5) {
+      console.log('Migrating v5 -> v6: Adding affixes, decrees, mutators tracking');
+      
+      data.run = {
+        ...data.run,
+        activeDecreeIds: [],
+        decreeDraftCompleted: false,
+        seenDecreeIds: [],
+        seenAffixIds: [],
+        seenMutatorIds: []
+      };
+      
+      data.version = 6;
     }
     
     // Apply merged defaults and save
@@ -1207,6 +1238,80 @@ class SaveSystemClass {
     };
 
     this.save();
+  }
+
+  // ========== DECREES ==========
+  
+  getActiveDecrees(): string[] {
+    return [...(this.data.run.activeDecreeIds || [])];
+  }
+  
+  addDecree(decreeId: string): void {
+    if (!this.data.run.activeDecreeIds) {
+      this.data.run.activeDecreeIds = [];
+    }
+    if (!this.data.run.activeDecreeIds.includes(decreeId)) {
+      this.data.run.activeDecreeIds.push(decreeId);
+    }
+    this.markDecreeSeen(decreeId);
+    this.save();
+  }
+  
+  removeDecree(decreeId: string): void {
+    if (this.data.run.activeDecreeIds) {
+      this.data.run.activeDecreeIds = this.data.run.activeDecreeIds.filter(id => id !== decreeId);
+      this.save();
+    }
+  }
+  
+  isDecreeDraftCompleted(): boolean {
+    return this.data.run.decreeDraftCompleted || false;
+  }
+  
+  completeDecreeDraft(): void {
+    this.data.run.decreeDraftCompleted = true;
+    this.save();
+  }
+  
+  markDecreeSeen(decreeId: string): void {
+    if (!this.data.run.seenDecreeIds) {
+      this.data.run.seenDecreeIds = [];
+    }
+    if (!this.data.run.seenDecreeIds.includes(decreeId)) {
+      this.data.run.seenDecreeIds.push(decreeId);
+    }
+  }
+  
+  isDecreeNew(decreeId: string): boolean {
+    return !(this.data.run.seenDecreeIds || []).includes(decreeId);
+  }
+  
+  // ========== AFFIX/MUTATOR TRACKING ==========
+  
+  markAffixSeen(affixId: string): void {
+    if (!this.data.run.seenAffixIds) {
+      this.data.run.seenAffixIds = [];
+    }
+    if (!this.data.run.seenAffixIds.includes(affixId)) {
+      this.data.run.seenAffixIds.push(affixId);
+    }
+  }
+  
+  isAffixNew(affixId: string): boolean {
+    return !(this.data.run.seenAffixIds || []).includes(affixId);
+  }
+  
+  markMutatorSeen(mutatorId: string): void {
+    if (!this.data.run.seenMutatorIds) {
+      this.data.run.seenMutatorIds = [];
+    }
+    if (!this.data.run.seenMutatorIds.includes(mutatorId)) {
+      this.data.run.seenMutatorIds.push(mutatorId);
+    }
+  }
+  
+  isMutatorNew(mutatorId: string): boolean {
+    return !(this.data.run.seenMutatorIds || []).includes(mutatorId);
   }
 }
 

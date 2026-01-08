@@ -26,6 +26,7 @@ import { WeaponData } from '../data/WeaponsData';
 import { ArmorData } from '../data/ArmorData';
 import { transitionToScene } from '../ui/Transitions';
 import { DebugOverlay } from '../ui/DebugOverlay';
+import { getDecreeById, Decree } from '../data/decrees';
 
 export class CampScene extends Phaser.Scene {
   private fighter!: Fighter;
@@ -49,6 +50,12 @@ export class CampScene extends Phaser.Scene {
     const run = SaveSystem.getRun();
     if (!run.fighter) {
       this.scene.start('MainMenuScene');
+      return;
+    }
+    
+    // Check if decree draft is needed (first time entering camp)
+    if (!SaveSystem.isDecreeDraftCompleted() && run.week === 0) {
+      this.scene.start('DecreeDraftScene');
       return;
     }
     
@@ -218,6 +225,81 @@ export class CampScene extends Phaser.Scene {
         color: fatigueColor
       }).setOrigin(1, 0);
     }
+    
+    // Active decrees display
+    this.createDecreeIcons();
+  }
+  
+  private createDecreeIcons(): void {
+    const { width } = this.cameras.main;
+    const safe = getSafeArea();
+    const activeDecrees = SaveSystem.getActiveDecrees();
+    
+    if (activeDecrees.length === 0) return;
+    
+    const startX = width / 2 - ((activeDecrees.length - 1) * 25) / 2;
+    const y = safe.top + 60;
+    
+    activeDecrees.forEach((decreeId, index) => {
+      const decree = getDecreeById(decreeId);
+      if (!decree) return;
+      
+      const x = startX + index * 25;
+      
+      // Small icon button
+      const iconBtn = this.add.text(x, y, decree.icon, {
+        fontSize: '16px'
+      }).setOrigin(0.5);
+      
+      // Make interactive for tooltip
+      iconBtn.setInteractive({ useHandCursor: true });
+      iconBtn.on('pointerdown', () => {
+        this.showDecreeTooltip(decree, x, y + 20);
+      });
+    });
+    
+    // Label if decrees exist
+    if (activeDecrees.length > 0) {
+      this.add.text(width / 2, y - 15, 'DECREES', {
+        fontFamily: 'Georgia, serif',
+        fontSize: '8px',
+        color: '#5a4a3a'
+      }).setOrigin(0.5);
+    }
+  }
+  
+  private showDecreeTooltip(decree: Decree, x: number, y: number): void {
+    const { width, height } = this.cameras.main;
+    
+    // Remove existing tooltip
+    this.children.getByName('decreeTooltip')?.destroy();
+    
+    const container = this.add.container(Math.min(x, width - 100), y);
+    container.setName('decreeTooltip');
+    container.setDepth(200);
+    
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1410, 0.95);
+    bg.fillRoundedRect(-80, 0, 160, 60, 5);
+    bg.lineStyle(1, 0xc9a959, 0.5);
+    bg.strokeRoundedRect(-80, 0, 160, 60, 5);
+    container.add(bg);
+    
+    container.add(this.add.text(0, 10, decree.name, {
+      fontFamily: 'Georgia, serif',
+      fontSize: '11px',
+      color: '#c9a959'
+    }).setOrigin(0.5));
+    
+    container.add(this.add.text(0, 30, decree.description, {
+      fontFamily: 'Georgia, serif',
+      fontSize: '8px',
+      color: '#8b7355',
+      wordWrap: { width: 150 }
+    }).setOrigin(0.5, 0));
+    
+    // Auto-hide after delay
+    this.time.delayedCall(2500, () => container.destroy());
   }
 
   private createPowerDisplay(): void {
