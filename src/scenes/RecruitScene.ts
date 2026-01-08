@@ -9,6 +9,9 @@ import { RNG } from '../systems/RNGSystem';
 import { getBloodlineStatBonuses } from '../systems/LegacySystem';
 import { UIHelper } from '../ui/UIHelper';
 import { PortraitRenderer } from '../ui/PortraitRenderer';
+import { Button } from '../ui/Button';
+import { calculatePowerFromStats, formatPower, getTierColor, PowerResult } from '../systems/PowerScore';
+import { DEFAULT_LOADOUT_STATS } from '../systems/InventorySystem';
 
 export class RecruitScene extends Phaser.Scene {
   private candidates: Fighter[] = [];
@@ -112,12 +115,28 @@ export class RecruitScene extends Phaser.Scene {
     bg.strokeRoundedRect(0, 0, cardWidth, cardHeight, 8);
     container.add(bg);
     
+    // Calculate Power for this recruit (with default gear)
+    const powerResult = calculatePowerFromStats(fighter, DEFAULT_LOADOUT_STATS, [], 'bronze');
+    
+    // Power badge at top
+    const powerBadge = this.add.graphics();
+    powerBadge.fillStyle(0x1a1510, 0.9);
+    powerBadge.fillRoundedRect(cardWidth / 2 - 30, 5, 60, 18, 3);
+    container.add(powerBadge);
+    
+    const powerText = this.add.text(cardWidth / 2, 14, `⚡${formatPower(powerResult.power)}`, {
+      fontFamily: 'Georgia, serif',
+      fontSize: '10px',
+      color: getTierColor(powerResult.tier)
+    }).setOrigin(0.5);
+    container.add(powerText);
+    
     // Portrait
-    const portrait = PortraitRenderer.renderMiniPortrait(this, fighter.portrait, cardWidth / 2, 50, 60);
+    const portrait = PortraitRenderer.renderMiniPortrait(this, fighter.portrait, cardWidth / 2, 55, 60);
     container.add(portrait);
     
     // Name
-    const name = this.add.text(cardWidth / 2, 95, fighter.firstName, {
+    const name = this.add.text(cardWidth / 2, 100, fighter.firstName, {
       fontFamily: 'Georgia, serif',
       fontSize: '14px',
       color: '#c9a959'
@@ -125,18 +144,18 @@ export class RecruitScene extends Phaser.Scene {
     container.add(name);
     
     // Nickname
-    const nickname = this.add.text(cardWidth / 2, 112, `"${fighter.nickname}"`, {
+    const nickname = this.add.text(cardWidth / 2, 117, `"${fighter.nickname}"`, {
       fontFamily: 'Georgia, serif',
-      fontSize: '10px',
+      fontSize: '9px',
       color: '#8b7355',
       fontStyle: 'italic'
     }).setOrigin(0.5);
     container.add(nickname);
     
     // Age
-    const age = this.add.text(cardWidth / 2, 130, `Age ${fighter.age}`, {
+    const age = this.add.text(cardWidth / 2, 133, `Age ${fighter.age}`, {
       fontFamily: 'Georgia, serif',
-      fontSize: '10px',
+      fontSize: '9px',
       color: '#5a4a3a'
     }).setOrigin(0.5);
     container.add(age);
@@ -144,16 +163,16 @@ export class RecruitScene extends Phaser.Scene {
     // Signature trait (brief)
     const trait = this.add.text(cardWidth / 2, 155, fighter.signatureTrait.name, {
       fontFamily: 'Georgia, serif',
-      fontSize: '11px',
+      fontSize: '10px',
       color: '#6b8e23'
     }).setOrigin(0.5);
     container.add(trait);
     
     // Flaw (brief)
     if (fighter.flaws.length > 0) {
-      const flaw = this.add.text(cardWidth / 2, 175, fighter.flaws[0].name, {
+      const flaw = this.add.text(cardWidth / 2, 173, fighter.flaws[0].name, {
         fontFamily: 'Georgia, serif',
-        fontSize: '10px',
+        fontSize: '9px',
         color: '#8b4513'
       }).setOrigin(0.5);
       container.add(flaw);
@@ -230,10 +249,19 @@ export class RecruitScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.detailsContainer.add(backstory);
     
+    // Power rating
+    const powerResult = calculatePowerFromStats(fighter, DEFAULT_LOADOUT_STATS, [], 'bronze');
+    const powerBadge = this.add.text(0, startY + 65, `⚡ POWER: ${formatPower(powerResult.power)} (${powerResult.tier.toUpperCase()})`, {
+      fontFamily: 'Georgia, serif',
+      fontSize: '12px',
+      color: getTierColor(powerResult.tier)
+    }).setOrigin(0.5);
+    this.detailsContainer.add(powerBadge);
+    
     // Stats
     const stats = fighter.currentStats;
     const statsText = `HP: ${stats.maxHP} | ATK: ${stats.attack} | DEF: ${stats.defense} | SPD: ${stats.speed}`;
-    const statsDisplay = this.add.text(0, startY + 80, statsText, {
+    const statsDisplay = this.add.text(0, startY + 88, statsText, {
       fontFamily: 'Georgia, serif',
       fontSize: '12px',
       color: '#c9a959'
@@ -241,14 +269,14 @@ export class RecruitScene extends Phaser.Scene {
     this.detailsContainer.add(statsDisplay);
     
     // Signature trait description
-    const traitTitle = this.add.text(0, startY + 110, `Signature: ${fighter.signatureTrait.name}`, {
+    const traitTitle = this.add.text(0, startY + 115, `Signature: ${fighter.signatureTrait.name}`, {
       fontFamily: 'Georgia, serif',
       fontSize: '13px',
       color: '#6b8e23'
     }).setOrigin(0.5);
     this.detailsContainer.add(traitTitle);
     
-    const traitDesc = this.add.text(0, startY + 130, fighter.signatureTrait.description, {
+    const traitDesc = this.add.text(0, startY + 135, fighter.signatureTrait.description, {
       fontFamily: 'Georgia, serif',
       fontSize: '10px',
       color: '#5a4a3a',
@@ -259,14 +287,14 @@ export class RecruitScene extends Phaser.Scene {
     
     // Flaw
     if (fighter.flaws.length > 0) {
-      const flawTitle = this.add.text(0, startY + 165, `Flaw: ${fighter.flaws[0].name}`, {
+      const flawTitle = this.add.text(0, startY + 170, `Flaw: ${fighter.flaws[0].name}`, {
         fontFamily: 'Georgia, serif',
         fontSize: '12px',
         color: '#8b4513'
       }).setOrigin(0.5);
       this.detailsContainer.add(flawTitle);
       
-      const flawDesc = this.add.text(0, startY + 183, fighter.flaws[0].description, {
+      const flawDesc = this.add.text(0, startY + 188, fighter.flaws[0].description, {
         fontFamily: 'Georgia, serif',
         fontSize: '10px',
         color: '#5a4a3a'
@@ -275,14 +303,14 @@ export class RecruitScene extends Phaser.Scene {
     }
     
     // Keepsake
-    const keepsakeTitle = this.add.text(0, startY + 215, `Keepsake: ${fighter.keepsake.name}`, {
+    const keepsakeTitle = this.add.text(0, startY + 218, `Keepsake: ${fighter.keepsake.name}`, {
       fontFamily: 'Georgia, serif',
       fontSize: '12px',
       color: '#c9a959'
     }).setOrigin(0.5);
     this.detailsContainer.add(keepsakeTitle);
     
-    const keepsakeEffect = this.add.text(0, startY + 233, fighter.keepsake.effect, {
+    const keepsakeEffect = this.add.text(0, startY + 236, fighter.keepsake.effect, {
       fontFamily: 'Georgia, serif',
       fontSize: '10px',
       color: '#8b7355'
@@ -320,22 +348,19 @@ export class RecruitScene extends Phaser.Scene {
   private createConfirmButton(): void {
     const { width, height } = this.cameras.main;
     
-    const btn = UIHelper.createButton(
+    const btn = new Button(
       this,
       width / 2,
       height - 60,
       'RECRUIT THIS FIGHTER',
       () => this.confirmSelection(),
-      { width: 240, height: 50, primary: true }
+      { width: 240, height: 50, primary: true, disabled: true }
     );
-    
-    // Initially disabled until selection
-    btn.setAlpha(0.5);
     
     // Enable when selected
     this.events.on('update', () => {
-      if (this.selectedIndex >= 0) {
-        btn.setAlpha(1);
+      if (this.selectedIndex >= 0 && btn.isDisabled()) {
+        btn.setDisabled(false);
       }
     });
   }

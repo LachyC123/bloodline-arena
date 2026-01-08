@@ -421,3 +421,34 @@ export function getMomentumActionById(id: string): MomentumAction | undefined {
 export function canAffordMomentumAction(momentum: number, action: MomentumAction): boolean {
   return momentum >= action.cost;
 }
+
+/**
+ * Get combined wound effects for power calculation
+ */
+export function getWoundEffects(wounds: Wound[]): {
+  damage_penalty: number;
+  defense_penalty: number;
+  accuracy_penalty: number;
+  stamina_penalty: number;
+  speed_penalty: number;
+  bleed_dot: number;
+} {
+  const effects = {
+    damage_penalty: 0,
+    defense_penalty: 0,
+    accuracy_penalty: 0,
+    stamina_penalty: 0,
+    speed_penalty: 0,
+    bleed_dot: 0
+  };
+  
+  for (const wound of wounds) {
+    for (const effect of wound.effects) {
+      if (effect.type in effects) {
+        (effects as Record<string, number>)[effect.type] += effect.value;
+      }
+    }
+  }
+  
+  return effects;
+}
