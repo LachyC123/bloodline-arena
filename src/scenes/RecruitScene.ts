@@ -10,7 +10,7 @@ import { getBloodlineStatBonuses } from '../systems/LegacySystem';
 import { UIHelper } from '../ui/UIHelper';
 import { PortraitRenderer } from '../ui/PortraitRenderer';
 import { Button } from '../ui/Button';
-import { calculatePowerFromStats, formatPower, getTierColor, PowerResult } from '../systems/PowerScore';
+import { calculatePowerFromStats, formatPower, getTierColor, PowerResult, getPowerAssessment } from '../systems/PowerScore';
 import { DEFAULT_LOADOUT_STATS } from '../systems/InventorySystem';
 
 export class RecruitScene extends Phaser.Scene {
@@ -117,6 +117,7 @@ export class RecruitScene extends Phaser.Scene {
     
     // Calculate Power for this recruit (with default gear)
     const powerResult = calculatePowerFromStats(fighter, DEFAULT_LOADOUT_STATS, [], 'bronze');
+    const assessment = getPowerAssessment(powerResult);
     
     // Power badge at top
     const powerBadge = this.add.graphics();
@@ -127,7 +128,7 @@ export class RecruitScene extends Phaser.Scene {
     const powerText = this.add.text(cardWidth / 2, 14, `⚡${formatPower(powerResult.power)}`, {
       fontFamily: 'Georgia, serif',
       fontSize: '10px',
-      color: getTierColor(powerResult.tier)
+      color: assessment.color
     }).setOrigin(0.5);
     container.add(powerText);
     
@@ -251,10 +252,11 @@ export class RecruitScene extends Phaser.Scene {
     
     // Power rating
     const powerResult = calculatePowerFromStats(fighter, DEFAULT_LOADOUT_STATS, [], 'bronze');
-    const powerBadge = this.add.text(0, startY + 65, `⚡ POWER: ${formatPower(powerResult.power)} (${powerResult.tier.toUpperCase()})`, {
+    const assessment = getPowerAssessment(powerResult);
+    const powerBadge = this.add.text(0, startY + 65, `⚡ POWER: ${formatPower(powerResult.power)} (${assessment.label})`, {
       fontFamily: 'Georgia, serif',
       fontSize: '12px',
-      color: getTierColor(powerResult.tier)
+      color: assessment.color
     }).setOrigin(0.5);
     this.detailsContainer.add(powerBadge);
     

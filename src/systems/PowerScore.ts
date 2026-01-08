@@ -36,17 +36,70 @@ export interface PowerBreakdown {
 export interface PowerResult {
   power: number;
   breakdown: PowerBreakdown;
-  tier: 'weak' | 'average' | 'strong' | 'elite' | 'champion';
+  tier: 'struggling' | 'average' | 'strong' | 'overpowered';
+  tierLabel: string;
+  tierDescription: string;
+  ratio: number;  // Power vs expected for league
+  expectedPower: number;
 }
 
-// Power tier thresholds
-const POWER_TIERS = {
-  weak: 0,
-  average: 100,
-  strong: 200,
-  elite: 350,
-  champion: 500
+// Expected power baselines per league
+// Calculated based on typical fresh character with starter gear
+// Fresh character with starter gear: ~220-260 power
+export const LEAGUE_EXPECTED_POWER: Record<string, number> = {
+  bronze: 240,    // Fresh character with starter gear
+  silver: 320,    // Upgraded gear + some training
+  gold: 420,      // Well-equipped + techniques
+  champion: 550   // Optimized build
 };
+
+// Stage progression within league (fights 1-5 in each league)
+export function getExpectedPowerForStage(league: string, fightNumber: number = 0): number {
+  const basePower = LEAGUE_EXPECTED_POWER[league] || LEAGUE_EXPECTED_POWER.bronze;
+  // Slight increase expected as you progress through fights
+  const progression = Math.min(fightNumber, 5) * 0.03; // +3% per fight
+  return Math.round(basePower * (1 + progression));
+}
+
+// Tier thresholds based on ratio to expected power
+export type PowerTier = 'struggling' | 'average' | 'strong' | 'overpowered';
+
+export function getPowerTierFromRatio(ratio: number): {
+  tier: PowerTier;
+  label: string;
+  description: string;
+  color: string;
+} {
+  if (ratio < 0.9) {
+    return {
+      tier: 'struggling',
+      label: 'Struggling',
+      description: 'Underpowered for this league. Train or upgrade gear.',
+      color: '#cd5c5c'
+    };
+  } else if (ratio < 1.1) {
+    return {
+      tier: 'average',
+      label: 'Average',
+      description: 'On par with typical fighters in this league.',
+      color: '#8b7355'
+    };
+  } else if (ratio < 1.3) {
+    return {
+      tier: 'strong',
+      label: 'Strong',
+      description: 'Above average for this league.',
+      color: '#6b8e23'
+    };
+  } else {
+    return {
+      tier: 'overpowered',
+      label: 'Overpowered',
+      description: 'Dominating this league. Ready for promotion.',
+      color: '#daa520'
+    };
+  }
+}
 
 // Weights for different stats (tuned for balance)
 const WEIGHTS = {
@@ -172,16 +225,22 @@ export function calculatePowerFromStats(
   // Round to integer
   const power = Math.round(rawPower);
   
-  // Determine tier
-  let tier: PowerResult['tier'] = 'weak';
-  if (power >= POWER_TIERS.champion) tier = 'champion';
-  else if (power >= POWER_TIERS.elite) tier = 'elite';
-  else if (power >= POWER_TIERS.strong) tier = 'strong';
-  else if (power >= POWER_TIERS.average) tier = 'average';
+  // Get expected power for this league
+  const expectedPower = getExpectedPowerForStage(league, 0);
+  
+  // Calculate ratio (safely handle 0/undefined)
+  const ratio = expectedPower > 0 ? power / expectedPower : 1.0;
+  
+  // Determine tier based on ratio
+  const tierInfo = getPowerTierFromRatio(ratio);
   
   return {
     power,
-    tier,
+    tier: tierInfo.tier,
+    tierLabel: tierInfo.label,
+    tierDescription: tierInfo.description,
+    ratio,
+    expectedPower,
     breakdown: {
       baseStats: Math.round(baseStatsTotal),
       weapon: Math.round(weaponTotal),
@@ -326,13 +385,53 @@ export function getPowerDelta(oldPower: number, newPower: number): {
  */
 export function getTierColor(tier: PowerResult['tier']): string {
   switch (tier) {
-    case 'champion': return '#ff8800';
-    case 'elite': return '#aa44ff';
-    case 'strong': return '#3388ff';
-    case 'average': return '#22cc22';
-    case 'weak': return '#888888';
+    case 'overpowered': return '#daa520';
+    case 'strong': return '#6b8e23';
+    case 'average': return '#8b7355';
+    case 'struggling': return '#cd5c5c';
     default: return '#888888';
   }
+}
+
+/**
+ * Get power assessment with detailed info for UI
+ */
+export function getPowerAssessment(powerResult: PowerResult): {
+  label: string;
+  description: string;
+  color: string;
+  vsExpected: string;
+  tips: string[];
+} {
+  const { tier, power, expectedPower, ratio, breakdown } = powerResult;
+  const tierInfo = getPowerTierFromRatio(ratio);
+  
+  const tips: string[] = [];
+  
+  // Generate tips based on breakdown
+  if (breakdown.weapon < breakdown.baseStats * 0.3) {
+    tips.push('Upgrade your weapon for more damage.');
+  }
+  if (breakdown.armor < 15) {
+    tips.push('Better armor would help your defense.');
+  }
+  if (breakdown.penalties > 0) {
+    tips.push('You have wounds reducing your power.');
+  }
+  if (tier === 'overpowered') {
+    tips.push('You might be ready for the next league.');
+  }
+  
+  const diff = power - expectedPower;
+  const vsExpected = diff >= 0 ? `+${diff} vs expected` : `${diff} vs expected`;
+  
+  return {
+    label: tierInfo.label,
+    description: tierInfo.description,
+    color: tierInfo.color,
+    vsExpected,
+    tips
+  };
 }
 
 /**
