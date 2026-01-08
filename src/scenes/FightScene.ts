@@ -16,7 +16,8 @@ import {
   rollForInjury,
   calculateRewards
 } from '../systems/CombatSystem';
-import { generateEnemy, getAIAction, getEnemyTaunt, EnemyAIType } from '../systems/EnemySystem';
+import { generateEnemy, getAIAction, getEnemyTaunt, EnemyAIType, EnemyFighter } from '../systems/EnemySystem';
+import { getMutatorById } from '../data/enemyMutators';
 import { UIHelper } from '../ui/UIHelper';
 import { AnimatedFighter, CombatVFXManager } from '../combat/CombatAnimator';
 import { 
@@ -249,12 +250,36 @@ export class FightScene extends Phaser.Scene {
       color: '#8b4513'
     }).setOrigin(1, 0);
     
-    this.add.text(eBarX + eBarW, eBarY + 5, `"${this.enemy.nickname}"`, {
-      fontFamily: 'Georgia, serif',
-      fontSize: '9px',
-      color: '#5a4a3a',
-      fontStyle: 'italic'
-    }).setOrigin(1, 0);
+    // Check if enemy has mutators
+    const enemyWithMutators = this.enemy as EnemyFighter;
+    if (enemyWithMutators.mutatorIds && enemyWithMutators.mutatorIds.length > 0) {
+      // Show mutator icons under enemy HP bar
+      const mutatorIcons = enemyWithMutators.mutatorIds.map(id => {
+        const mutator = getMutatorById(id);
+        return mutator?.icon || '❓';
+      }).join(' ');
+      
+      this.add.text(eBarX + eBarW, eBarY + 5, mutatorIcons, {
+        fontSize: '14px'
+      }).setOrigin(1, 0);
+      
+      // Show first mutator warning
+      const firstMutator = getMutatorById(enemyWithMutators.mutatorIds[0]);
+      if (firstMutator) {
+        this.add.text(eBarX + eBarW, eBarY + 22, firstMutator.shortWarning, {
+          fontFamily: 'Georgia, serif',
+          fontSize: '8px',
+          color: '#cd5c5c'
+        }).setOrigin(1, 0);
+      }
+    } else {
+      this.add.text(eBarX + eBarW, eBarY + 5, `"${this.enemy.nickname}"`, {
+        fontFamily: 'Georgia, serif',
+        fontSize: '9px',
+        color: '#5a4a3a',
+        fontStyle: 'italic'
+      }).setOrigin(1, 0);
+    }
     
     // Crowd hype bar (center top)
     const hypeW = 120;

@@ -1,11 +1,17 @@
 /**
- * EnemySystem - Enemy AI and generation
+ * EnemySystem - Enemy AI and generation with mutators
  */
 
 import { Fighter, FighterStats, generatePortrait } from './FighterSystem';
 import { CombatState, CombatAction, TargetZone } from './CombatSystem';
 import { RNG } from './RNGSystem';
 import { ENEMY_ARCHETYPES, ENEMY_NAMES } from '../data/EnemyData';
+import { rollMutators, getMutatorById, combineMutatorStatMods, EnemyMutator } from '../data/enemyMutators';
+
+// Extended enemy with mutators
+export interface EnemyFighter extends Fighter {
+  mutatorIds: string[];
+}
 
 // Enemy AI personality types
 export type EnemyAIType = 'aggressive' | 'defensive' | 'trickster' | 'brutal' | 'balanced' | 'cautious' | 'berserker' | 'tactical';
@@ -127,7 +133,48 @@ export function generateEnemy(
     weeksSurvived: week
   };
   
-  return enemy;
+  // Roll and apply mutators
+  const mutatorIds = rollMutators(league);
+  const enemyWithMutators = enemy as EnemyFighter;
+  enemyWithMutators.mutatorIds = mutatorIds;
+  
+  // Apply mutator stat mods
+  if (mutatorIds.length > 0) {
+    const statMods = combineMutatorStatMods(mutatorIds);
+    
+    // Apply percentage mods
+    if (statMods.hpMod) {
+      enemy.currentStats.maxHP = Math.round(enemy.currentStats.maxHP * (1 + statMods.hpMod / 100));
+      enemy.currentStats.currentHP = enemy.currentStats.maxHP;
+    }
+    if (statMods.damageMod) {
+      enemy.currentStats.attack = Math.round(enemy.currentStats.attack * (1 + statMods.damageMod / 100));
+    }
+    if (statMods.defenseMod) {
+      enemy.currentStats.defense = Math.round(enemy.currentStats.defense * (1 + statMods.defenseMod / 100));
+    }
+    if (statMods.critMod) {
+      enemy.currentStats.critChance = Math.round(enemy.currentStats.critChance * (1 + statMods.critMod / 100));
+    }
+    if (statMods.dodgeMod) {
+      enemy.currentStats.evasion = Math.round(enemy.currentStats.evasion * (1 + statMods.dodgeMod / 100));
+    }
+    if (statMods.staminaMod) {
+      enemy.currentStats.maxStamina = Math.round(enemy.currentStats.maxStamina * (1 + statMods.staminaMod / 100));
+      enemy.currentStats.currentStamina = enemy.currentStats.maxStamina;
+    }
+    if (statMods.speedMod) {
+      enemy.currentStats.speed = Math.round(enemy.currentStats.speed * (1 + statMods.speedMod / 100));
+    }
+    
+    // Add mutator names to enemy title
+    const mutatorNames = mutatorIds.map(id => getMutatorById(id)?.name).filter(Boolean);
+    if (mutatorNames.length > 0) {
+      enemy.nickname = `${enemy.nickname} [${mutatorNames.join(', ')}]`;
+    }
+  }
+  
+  return enemyWithMutators;
 }
 
 function aiTypeToPersonality(aiType: EnemyAIType): Fighter['personality'] {

@@ -5,6 +5,7 @@
 
 import { WeaponData, ItemRarity, getWeaponById, WEAPONS_DATA } from '../data/WeaponsData';
 import { ArmorData, ArmorSlot, getArmorById, ARMOR_DATA } from '../data/ArmorData';
+import { rollAffixes, getAffixedItemName, calculateAffixStats, AffixedItemInstance, AffixedStats } from './AffixSystem';
 
 // ========== ITEM TYPES ==========
 
@@ -17,6 +18,11 @@ export interface ItemInstance {
   slot?: ArmorSlot;          // For armor
   quantity: number;          // For consumables
   acquired: number;          // Timestamp
+  
+  // Affixes (v6)
+  prefixId?: string;
+  suffixId?: string;
+  curseId?: string;
 }
 
 export interface TrinketData {
@@ -377,9 +383,10 @@ export function createItemInstance(
   itemId: string, 
   itemType: ItemType, 
   slot?: ArmorSlot,
-  quantity: number = 1
+  quantity: number = 1,
+  affixes?: { prefixId?: string; suffixId?: string; curseId?: string }
 ): ItemInstance {
-  return {
+  const instance: ItemInstance = {
     instanceId: generateInstanceId(),
     itemId,
     itemType,
@@ -387,6 +394,29 @@ export function createItemInstance(
     quantity,
     acquired: Date.now()
   };
+  
+  // Apply affixes if provided
+  if (affixes) {
+    if (affixes.prefixId) instance.prefixId = affixes.prefixId;
+    if (affixes.suffixId) instance.suffixId = affixes.suffixId;
+    if (affixes.curseId) instance.curseId = affixes.curseId;
+  }
+  
+  return instance;
+}
+
+/**
+ * Create item instance with randomly rolled affixes
+ */
+export function createAffixedItemInstance(
+  itemId: string,
+  itemType: ItemType,
+  rarity: ItemRarity,
+  league: string,
+  slot?: ArmorSlot
+): ItemInstance {
+  const affixes = rollAffixes(itemType, rarity, league);
+  return createItemInstance(itemId, itemType, slot, 1, affixes);
 }
 
 export function getItemData(instance: ItemInstance): WeaponData | ArmorData | TrinketData | ConsumableData | undefined {
@@ -405,6 +435,21 @@ export function getItemData(instance: ItemInstance): WeaponData | ArmorData | Tr
 }
 
 export function getItemName(instance: ItemInstance): string {
+  const data = getItemData(instance);
+  const baseName = data?.name || 'Unknown Item';
+  
+  // If item has affixes, generate full name
+  if (instance.prefixId || instance.suffixId || instance.curseId) {
+    return getAffixedItemName(instance as AffixedItemInstance, baseName);
+  }
+  
+  return baseName;
+}
+
+/**
+ * Get the base item name without affixes
+ */
+export function getBaseItemName(instance: ItemInstance): string {
   const data = getItemData(instance);
   return data?.name || 'Unknown Item';
 }
@@ -592,6 +637,35 @@ export function calculateLoadoutStats(
     }
   }
   
+  // Apply affix stats from equipped items
+  const equippedItems = [
+    loadout.weaponId,
+    loadout.armorId,
+    loadout.helmetId,
+    loadout.shieldId
+  ].filter(Boolean);
+  
+  for (const itemId of equippedItems) {
+    const instance = inventory.find(i => i.instanceId === itemId);
+    if (instance && (instance.prefixId || instance.suffixId || instance.curseId)) {
+      const affixStats = calculateAffixStats(instance as AffixedItemInstance);
+      
+      // Apply affix bonuses
+      stats.damageMin += affixStats.damageMin;
+      stats.damageMax += affixStats.damageMax;
+      stats.totalDefense += affixStats.defense;
+      stats.critChanceMod += affixStats.critChance;
+      stats.accuracyMod += affixStats.accuracy;
+      stats.dodgeMod += affixStats.dodge;
+      stats.speedMod += affixStats.speed;
+      stats.staminaRegenMod += affixStats.staminaRegen;
+      stats.lightStaminaCost += affixStats.staminaCost;
+      stats.heavyStaminaCost += affixStats.staminaCost;
+      stats.bleedResist += affixStats.bleedResist;
+      stats.stunResist += affixStats.stunResist;
+    }
+  }
+  
   return stats;
 }
 
@@ -639,7 +713,7 @@ export const RARITY_NAMES: Record<ItemRarity, string> = {
 
 // ========== ITEM GENERATION FOR DROPS/SHOP ==========
 
-export function generateRandomWeapon(league: 'bronze' | 'silver' | 'gold'): ItemInstance {
+export function generateRandomWeapon(league: 'bronze' | 'silver' | 'gold', withAffixes: boolean = true): ItemInstance {
   const leagueOrder = ['bronze', 'silver', 'gold'];
   const leagueIdx = leagueOrder.indexOf(league);
   
@@ -675,14 +749,21 @@ export function generateRandomWeapon(league: 'bronze' | 'silver' | 'gold'): Item
   for (const { weapon, weight } of weighted) {
     roll -= weight;
     if (roll <= 0) {
+      if (withAffixes) {
+        return createAffixedItemInstance(weapon.id, 'weapon', weapon.rarity, league);
+      }
       return createItemInstance(weapon.id, 'weapon');
     }
   }
   
-  return createItemInstance(available[0].id, 'weapon');
+  const fallback = available[0];
+  if (withAffixes) {
+    return createAffixedItemInstance(fallback.id, 'weapon', fallback.rarity, league);
+  }
+  return createItemInstance(fallback.id, 'weapon');
 }
 
-export function generateRandomArmor(league: 'bronze' | 'silver' | 'gold', slot?: ArmorSlot): ItemInstance {
+export function generateRandomArmor(league: 'bronze' | 'silver' | 'gold', slot?: ArmorSlot, withAffixes: boolean = true): ItemInstance {
   const leagueOrder = ['bronze', 'silver', 'gold'];
   const leagueIdx = leagueOrder.indexOf(league);
   
@@ -719,10 +800,16 @@ export function generateRandomArmor(league: 'bronze' | 'silver' | 'gold', slot?:
   for (const { armor, weight } of weighted) {
     roll -= weight;
     if (roll <= 0) {
+      if (withAffixes) {
+        return createAffixedItemInstance(armor.id, 'armor', armor.rarity, league, armor.slot);
+      }
       return createItemInstance(armor.id, 'armor', armor.slot);
     }
   }
   
   const first = available[0];
+  if (withAffixes) {
+    return createAffixedItemInstance(first.id, 'armor', first.rarity, league, first.slot);
+  }
   return createItemInstance(first.id, 'armor', first.slot);
 }

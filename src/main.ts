@@ -24,6 +24,7 @@ import { TrainingScene } from './scenes/TrainingScene';
 import { PrepareScene } from './scenes/PrepareScene';
 import { CharacterSheetScene } from './scenes/CharacterSheetScene';
 import { CustomizeScene } from './scenes/CustomizeScene';
+import { DecreeDraftScene } from './scenes/DecreeDraftScene';
 
 // Calculate game dimensions for mobile-first design
 const getGameConfig = (): Phaser.Types.Core.GameConfig => {
@@ -89,7 +90,8 @@ const getGameConfig = (): Phaser.Types.Core.GameConfig => {
       TrainingScene,
       PrepareScene,
       CharacterSheetScene,
-      CustomizeScene
+      CustomizeScene,
+      DecreeDraftScene
     ],
     physics: {
       default: 'arcade',
