@@ -1,5 +1,6 @@
 /**
  * RunMapScene - Visual branching path map for roguelite progression
+ * Fixed: Uses proper hit rectangles for reliable touch/click detection
  */
 
 import Phaser from 'phaser';
@@ -13,13 +14,14 @@ import {
   completeNode,
   getNodeById 
 } from '../data/runMap';
-import { UIHelper } from '../ui/UIHelper';
+import { Button, setInputDebug } from '../ui/Button';
 
 export class RunMapScene extends Phaser.Scene {
   private runMap!: RunMap;
-  private nodeContainers: Map<string, Phaser.GameObjects.Container> = new Map();
   private selectedNodeId: string | null = null;
   private infoPanel!: Phaser.GameObjects.Container;
+  private nodeHitAreas: Phaser.GameObjects.Rectangle[] = [];
+  private debugMode: boolean = false;
   
   constructor() {
     super({ key: 'RunMapScene' });
@@ -27,6 +29,20 @@ export class RunMapScene extends Phaser.Scene {
   
   create(): void {
     const run = SaveSystem.getRun();
+    this.debugMode = SaveSystem.getSettings().debugMode || false;
+    
+    // Enable input debug if in debug mode
+    if (this.debugMode) {
+      setInputDebug(true);
+    }
+    
+    // Ensure input is fully enabled and not blocked
+    this.input.enabled = true;
+    this.input.keyboard?.enabled && (this.input.keyboard.enabled = true);
+    
+    // Ensure camera is fully visible (in case of prior fade)
+    this.cameras.main.setAlpha(1);
+    this.cameras.main.resetFX();
     
     // Get or generate map
     if (run.runMap) {
@@ -36,12 +52,41 @@ export class RunMapScene extends Phaser.Scene {
       SaveSystem.updateRun({ runMap: this.runMap as any });
     }
     
+    // Clear any previous state
+    this.selectedNodeId = null;
+    this.nodeHitAreas = [];
+    
     this.createBackground();
     this.createHeader();
     this.drawConnections();
     this.drawNodes();
     this.createInfoPanel();
     this.createBottomUI();
+    
+    // Debug logging
+    if (this.debugMode) {
+      console.log('[RunMap] Scene created');
+      console.log('[RunMap] Input enabled:', this.input.enabled);
+      console.log('[RunMap] Nodes:', this.runMap.nodes.length);
+      console.log('[RunMap] Current node ID:', this.runMap.currentNodeId);
+      console.log('[RunMap] Start node IDs:', this.runMap.startNodeIds);
+      const accessible = getAccessibleNodes(this.runMap);
+      console.log('[RunMap] Accessible nodes:', accessible.map(n => `${n.id}(${n.type})`).join(', '));
+      console.log('[RunMap] Node hit areas created:', this.nodeHitAreas.length);
+    }
+    
+    // Additional: Log any pointer events on the scene (dev debug)
+    if (this.debugMode) {
+      this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+        console.log(`[RunMap] Scene pointerdown at (${pointer.x.toFixed(0)}, ${pointer.y.toFixed(0)})`);
+        const objects = this.input.hitTestPointer(pointer);
+        console.log('[RunMap] Objects under pointer:', objects.length);
+        objects.forEach((obj, i) => {
+          const nodeId = obj.getData?.('nodeId');
+          console.log(`  ${i}: ${obj.constructor.name}${nodeId ? ` nodeId=${nodeId}` : ''}`);
+        });
+      });
+    }
     
     this.cameras.main.fadeIn(300);
   }
@@ -52,6 +97,7 @@ export class RunMapScene extends Phaser.Scene {
     const bg = this.add.graphics();
     bg.fillGradientStyle(0x1a1410, 0x1a1410, 0x2a1f1a, 0x2a1f1a);
     bg.fillRect(0, 0, width, height);
+    bg.setDepth(0);
     
     // Parchment texture effect
     for (let i = 0; i < 50; i++) {
@@ -80,7 +126,7 @@ export class RunMapScene extends Phaser.Scene {
       color: '#c9a959',
       stroke: '#000000',
       strokeThickness: 3
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(10);
     
     // Progress
     const completed = this.runMap.nodes.filter(n => n.completed).length;
@@ -90,7 +136,7 @@ export class RunMapScene extends Phaser.Scene {
       fontFamily: 'Georgia, serif',
       fontSize: '12px',
       color: '#8b7355'
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(10);
   }
   
   private drawConnections(): void {
@@ -100,8 +146,10 @@ export class RunMapScene extends Phaser.Scene {
     const mapHeight = mapBottom - mapTop;
     
     const maxRow = Math.max(...this.runMap.nodes.map(n => n.y));
+    if (maxRow === 0) return;
     
     const lines = this.add.graphics();
+    lines.setDepth(1);
     
     this.runMap.nodes.forEach(node => {
       const fromX = 40 + node.x * (width - 80);
@@ -134,7 +182,9 @@ export class RunMapScene extends Phaser.Scene {
     const mapHeight = mapBottom - mapTop;
     
     const maxRow = Math.max(...this.runMap.nodes.map(n => n.y));
-    const nodeSize = 40;
+    if (maxRow === 0) return;
+    
+    const nodeSize = 56; // Larger for better touch targets
     
     this.runMap.nodes.forEach(node => {
       const x = 40 + node.x * (width - 80);
@@ -145,22 +195,21 @@ export class RunMapScene extends Phaser.Scene {
   }
   
   private createNodeVisual(node: MapNode, x: number, y: number, size: number): void {
-    const container = this.add.container(x, y);
-    this.nodeContainers.set(node.id, container);
-    
     const config = NODE_CONFIGS[node.type];
     const isAccessible = this.isNodeAccessible(node.id);
     const isCurrent = this.runMap.currentNodeId === node.id;
+    const isSelected = this.selectedNodeId === node.id;
     
-    // Background circle
-    const bg = this.add.graphics();
-    
-    let bgColor = 0x2a1f1a;  // Default
+    // Determine colors
+    let bgColor = 0x2a1f1a;  // Default locked
     let borderColor = 0x5a4a3a;
     
     if (node.completed) {
       bgColor = 0x1a3a1a;  // Green - completed
       borderColor = 0x3a6a3a;
+    } else if (isSelected) {
+      bgColor = 0x4a4a2a;  // Selected
+      borderColor = 0xffd700;
     } else if (isAccessible) {
       bgColor = 0x3a3a2a;  // Yellow tint - accessible
       borderColor = 0xc9a959;
@@ -169,24 +218,38 @@ export class RunMapScene extends Phaser.Scene {
       borderColor = 0xffd700;
     }
     
+    // Draw background circle (visual only, not interactive)
+    const bg = this.add.graphics();
+    bg.setDepth(5);
     bg.fillStyle(bgColor, 1);
-    bg.fillCircle(0, 0, size / 2);
+    bg.fillCircle(x, y, size / 2);
     bg.lineStyle(3, borderColor, 1);
-    bg.strokeCircle(0, 0, size / 2);
-    container.add(bg);
+    bg.strokeCircle(x, y, size / 2);
+    
+    // Store reference for updates
+    (node as any)._bg = bg;
+    (node as any)._bgColor = bgColor;
+    (node as any)._borderColor = borderColor;
     
     // Icon
-    const icon = this.add.text(0, 0, config.icon, {
-      fontSize: '18px'
-    }).setOrigin(0.5);
-    container.add(icon);
+    const icon = this.add.text(x, y, config.icon, {
+      fontSize: '20px'
+    }).setOrigin(0.5).setDepth(6);
     
-    // Current indicator
+    // Completed checkmark
+    if (node.completed) {
+      this.add.text(x + size / 2 - 8, y - size / 2 + 8, '✓', {
+        fontSize: '14px',
+        color: '#4a8a4a'
+      }).setOrigin(0.5).setDepth(7);
+    }
+    
+    // Current indicator pulse
     if (isCurrent) {
       const pulse = this.add.graphics();
+      pulse.setDepth(4);
       pulse.lineStyle(2, 0xffd700, 0.5);
-      pulse.strokeCircle(0, 0, size / 2 + 5);
-      container.add(pulse);
+      pulse.strokeCircle(x, y, size / 2 + 5);
       
       this.tweens.add({
         targets: pulse,
@@ -197,42 +260,59 @@ export class RunMapScene extends Phaser.Scene {
       });
     }
     
-    // Completed checkmark
-    if (node.completed) {
-      const check = this.add.text(size / 2 - 5, -size / 2 + 5, '✓', {
-        fontSize: '12px',
-        color: '#4a8a4a'
-      }).setOrigin(0.5);
-      container.add(check);
-    }
-    
-    // Interactive for accessible nodes
+    // Create SEPARATE hit rectangle for interaction (NOT inside container)
     if (isAccessible && !node.completed) {
-      container.setSize(size, size);
-      container.setInteractive(
-        new Phaser.Geom.Circle(0, 0, size / 2),
-        Phaser.Geom.Circle.Contains
-      );
+      const hitRect = this.add.rectangle(x, y, size + 10, size + 10, 0x000000, 0);
+      hitRect.setDepth(100); // Above everything for clicks
+      hitRect.setInteractive({ useHandCursor: true });
+      hitRect.setData('nodeId', node.id);
       
-      container.on('pointerover', () => {
+      // Debug: show hit area
+      if (this.debugMode) {
+        hitRect.setFillStyle(0xff0000, 0.2);
+      }
+      
+      hitRect.on('pointerover', () => {
         bg.clear();
         bg.fillStyle(0x4a4a3a, 1);
-        bg.fillCircle(0, 0, size / 2);
+        bg.fillCircle(x, y, size / 2);
         bg.lineStyle(3, 0xffd700, 1);
-        bg.strokeCircle(0, 0, size / 2);
+        bg.strokeCircle(x, y, size / 2);
+        
+        // Scale up slightly
+        this.tweens.add({
+          targets: [bg, icon],
+          scaleX: 1.1,
+          scaleY: 1.1,
+          duration: 100
+        });
       });
       
-      container.on('pointerout', () => {
+      hitRect.on('pointerout', () => {
+        const currentSelected = this.selectedNodeId === node.id;
         bg.clear();
-        bg.fillStyle(bgColor, 1);
-        bg.fillCircle(0, 0, size / 2);
-        bg.lineStyle(3, borderColor, 1);
-        bg.strokeCircle(0, 0, size / 2);
+        bg.fillStyle(currentSelected ? 0x4a4a2a : bgColor, 1);
+        bg.fillCircle(x, y, size / 2);
+        bg.lineStyle(3, currentSelected ? 0xffd700 : borderColor, 1);
+        bg.strokeCircle(x, y, size / 2);
+        
+        // Scale back
+        this.tweens.add({
+          targets: [bg, icon],
+          scaleX: 1,
+          scaleY: 1,
+          duration: 100
+        });
       });
       
-      container.on('pointerdown', () => {
+      hitRect.on('pointerdown', () => {
+        if (this.debugMode) {
+          console.log('[RunMap] Node clicked:', node.id, node.type);
+        }
         this.selectNode(node.id);
       });
+      
+      this.nodeHitAreas.push(hitRect);
     }
   }
   
@@ -242,6 +322,10 @@ export class RunMapScene extends Phaser.Scene {
   }
   
   private selectNode(nodeId: string): void {
+    if (this.debugMode) {
+      console.log('[RunMap] selectNode called:', nodeId);
+    }
+    
     this.selectedNodeId = nodeId;
     this.updateInfoPanel();
   }
@@ -250,10 +334,13 @@ export class RunMapScene extends Phaser.Scene {
     const { width, height } = this.cameras.main;
     
     this.infoPanel = this.add.container(0, 0);
+    // Set depth below node hit areas but above background
+    this.infoPanel.setDepth(20);
     
     const panelY = height - 190;
     const panelH = 100;
     
+    // Panel background - NOT interactive to avoid blocking
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1410, 0.95);
     bg.fillRoundedRect(15, panelY, width - 30, panelH, 8);
@@ -261,7 +348,7 @@ export class RunMapScene extends Phaser.Scene {
     bg.strokeRoundedRect(15, panelY, width - 30, panelH, 8);
     this.infoPanel.add(bg);
     
-    const hint = this.add.text(width / 2, panelY + panelH / 2, 'Select a node to travel', {
+    const hint = this.add.text(width / 2, panelY + panelH / 2, 'Tap a node to select', {
       fontFamily: 'Georgia, serif',
       fontSize: '14px',
       color: '#5a4a3a',
@@ -278,6 +365,8 @@ export class RunMapScene extends Phaser.Scene {
     // Clear and rebuild
     this.infoPanel.destroy();
     this.infoPanel = this.add.container(0, 0);
+    // Set depth below node hit areas (100) but above map visuals
+    this.infoPanel.setDepth(20);
     
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1410, 0.95);
@@ -287,7 +376,7 @@ export class RunMapScene extends Phaser.Scene {
     this.infoPanel.add(bg);
     
     if (!this.selectedNodeId) {
-      const hint = this.add.text(width / 2, panelY + panelH / 2, 'Select a node to travel', {
+      const hint = this.add.text(width / 2, panelY + panelH / 2, 'Tap a node to select', {
         fontFamily: 'Georgia, serif',
         fontSize: '14px',
         color: '#5a4a3a',
@@ -317,16 +406,21 @@ export class RunMapScene extends Phaser.Scene {
     });
     this.infoPanel.add(desc);
     
-    // Travel button
-    const travelBtn = UIHelper.createButton(
-      this, width - 80, panelY + panelH / 2, 'TRAVEL',
-      () => this.travelToNode(node),
-      { width: 100, height: 40, fontSize: '14px', primary: true }
-    );
-    this.infoPanel.add(travelBtn);
+    // Travel button using Button component - ensure it's above info panel
+    const travelBtn = new Button(this, width - 80, panelY + panelH / 2, 'TRAVEL', () => {
+      if (this.debugMode) {
+        console.log('[RunMap] Travel button clicked for node:', node.id);
+      }
+      this.travelToNode(node);
+    }, { width: 100, height: 40, fontSize: 14, primary: true });
+    travelBtn.setDepth(30); // Above info panel
   }
   
   private travelToNode(node: MapNode): void {
+    if (this.debugMode) {
+      console.log('[RunMap] Traveling to node:', node.id, node.type);
+    }
+    
     // Complete the node (mark as current destination)
     completeNode(this.runMap, node.id);
     SaveSystem.updateRun({ runMap: this.runMap as any });
@@ -352,11 +446,9 @@ export class RunMapScene extends Phaser.Scene {
           this.scene.start('ForgeScene');
           break;
         case 'clinic':
-          // Could be a dedicated clinic scene, for now use camp with healing
           this.scene.start('CampScene');
           break;
         case 'event':
-          // Could be a dedicated event scene
           this.scene.start('VignetteScene');
           break;
         case 'camp':
@@ -371,11 +463,38 @@ export class RunMapScene extends Phaser.Scene {
   private createBottomUI(): void {
     const { width, height } = this.cameras.main;
     
-    UIHelper.createButton(
-      this, width / 2, height - 40, '← BACK TO CAMP',
-      () => this.returnToCamp(),
-      { width: 180, height: 45 }
-    );
+    // Use Button component for reliable interaction
+    const campBtn = new Button(this, width / 2, height - 40, '🏕️ CAMP', () => {
+      if (this.debugMode) {
+        console.log('[RunMap] Camp button clicked');
+      }
+      this.returnToCamp();
+    }, { width: 140, height: 45 });
+    campBtn.setDepth(200); // Above everything
+    
+    // Dev-only: Quick test button
+    if (this.debugMode) {
+      const testBtn = new Button(this, width - 70, height - 40, 'TEST', () => {
+        this.testNavigation();
+      }, { width: 80, height: 35, fontSize: 12 });
+      testBtn.setDepth(200);
+    }
+  }
+  
+  private testNavigation(): void {
+    // Find first accessible fight node
+    const accessible = getAccessibleNodes(this.runMap);
+    const fightNode = accessible.find(n => n.type === 'fight' || n.type === 'elite');
+    
+    if (fightNode) {
+      console.log('[RunMap] Test: Navigating to fight node:', fightNode.id);
+      this.travelToNode(fightNode);
+    } else if (accessible.length > 0) {
+      console.log('[RunMap] Test: Navigating to first accessible node:', accessible[0].id);
+      this.travelToNode(accessible[0]);
+    } else {
+      console.log('[RunMap] Test: No accessible nodes!');
+    }
   }
   
   private returnToCamp(): void {
