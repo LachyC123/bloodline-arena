@@ -13,7 +13,7 @@ import { Wound } from '../data/IntensityMechanics';
 import { EnemyClassId } from '../data/EnemyClassData';
 
 // Current save version - increment when adding breaking changes
-const SAVE_VERSION = 7;
+const SAVE_VERSION = 8;
 
 // Save data structure
 // Training history entry for stat delta display
@@ -606,6 +606,36 @@ class SaveSystemClass {
       };
       
       data.version = 7;
+    }
+    
+    // Version 7 -> 8: Add node status fields, selectedNodeId, inProgressNodeId
+    if (data.version === 7) {
+      console.log('Migrating v7 -> v8: Adding node status tracking');
+      
+      // Migrate existing runMap if present
+      if (data.run?.runMap && typeof data.run.runMap === 'object') {
+        const runMap = data.run.runMap as any;
+        
+        // Add new tracking fields
+        runMap.selectedNodeId = runMap.selectedNodeId ?? null;
+        runMap.inProgressNodeId = runMap.inProgressNodeId ?? null;
+        
+        // Migrate node status based on completed flag
+        if (Array.isArray(runMap.nodes)) {
+          runMap.nodes.forEach((node: any) => {
+            if (node.completed === true) {
+              node.status = 'completed';
+            } else if (!node.status) {
+              // Check if accessible from current position to determine status
+              node.status = 'available';
+            }
+          });
+        }
+        
+        console.log('Migrated runMap node statuses');
+      }
+      
+      data.version = 8;
     }
     
     // Apply merged defaults and save

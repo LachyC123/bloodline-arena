@@ -6,12 +6,15 @@ import Phaser from 'phaser';
 import { SaveSystem } from '../systems/SaveSystem';
 import { Fighter, addTrust, Injury } from '../systems/FighterSystem';
 import { UIHelper } from '../ui/UIHelper';
+import { completeNode, cancelNode, getNodeById } from '../data/runMap';
 
 interface ResultsData {
   won: boolean;
   rewards: { gold: number; fame: number; xp: number };
   injury: Injury | null;
   enemy: Fighter;
+  nodeId?: string;  // The node that was fought
+  encounterType?: 'fight' | 'elite' | 'champion' | 'rival';
 }
 
 export class ResultsScene extends Phaser.Scene {
@@ -33,6 +36,9 @@ export class ResultsScene extends Phaser.Scene {
     this.createRewardsDisplay();
     this.createContinueButton();
     
+    // Handle fight outcome for map progression
+    this.resolveNodeOutcome();
+    
     // Add trust for winning
     if (this.resultsData.won) {
       const run = SaveSystem.getRun();
@@ -46,6 +52,41 @@ export class ResultsScene extends Phaser.Scene {
     this.checkLeagueAdvancement();
     
     this.cameras.main.fadeIn(300);
+  }
+  
+  /**
+   * Resolve the node outcome - ONLY here does a node get marked completed
+   */
+  private resolveNodeOutcome(): void {
+    const run = SaveSystem.getRun();
+    if (!run.runMap) {
+      console.log('[Results] No run map, skipping node resolution');
+      return;
+    }
+    
+    // Get the node that was being attempted
+    const nodeId = this.resultsData.nodeId || run.runMap.inProgressNodeId;
+    
+    if (!nodeId) {
+      console.log('[Results] No node in progress, skipping node resolution');
+      return;
+    }
+    
+    console.log(`[Results] Resolving node ${nodeId}, won=${this.resultsData.won}`);
+    
+    if (this.resultsData.won) {
+      // WIN: Mark node as completed and advance position
+      completeNode(run.runMap, nodeId);
+      console.log(`[Results] Node ${nodeId} marked as COMPLETED (victory)`);
+      
+      // Save the updated map state
+      SaveSystem.updateRun({ runMap: run.runMap as any });
+    } else {
+      // LOSS: Cancel the in-progress node (will go to death scene anyway)
+      cancelNode(run.runMap);
+      console.log(`[Results] Node ${nodeId} cancelled (defeat)`);
+      SaveSystem.updateRun({ runMap: run.runMap as any });
+    }
   }
 
   private createBackground(): void {

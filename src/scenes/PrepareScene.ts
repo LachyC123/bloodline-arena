@@ -32,6 +32,7 @@ import { getEnemyClass, rollEnemyClass, EnemyClass } from '../data/EnemyClassDat
 import { calculatePower, calculateEnemyPower, formatPower, getTierColor, getFightRisk, getPowerAssessment } from '../systems/PowerScore';
 import { safeSceneCreate, logSceneTransition, errorOverlay } from '../systems/ErrorOverlay';
 import { startCombat, CombatEntryParams } from '../systems/CombatEntry';
+import { cancelNode } from '../data/runMap';
 
 type InventoryTab = 'weapons' | 'armor' | 'trinkets' | 'consumables';
 
@@ -132,13 +133,52 @@ export class PrepareScene extends Phaser.Scene {
     const { width } = this.cameras.main;
     const safe = getSafeArea();
     
-    this.add.text(width / 2, safe.top + 20, 'PREPARE FOR BATTLE', {
+    // Get combat params to check for elite/champion
+    const combatParams = this.registry.get('combatParams') as CombatEntryParams | undefined;
+    const isElite = combatParams?.isElite || combatParams?.nodeType === 'elite' || false;
+    const isChampion = combatParams?.isChampion || combatParams?.nodeType === 'champion' || false;
+    
+    // Elite/Champion badge
+    if (isChampion) {
+      const banner = this.add.graphics();
+      banner.fillStyle(0x2a1a3a, 0.9);
+      banner.fillRoundedRect(width / 2 - 85, safe.top + 5, 170, 28, 8);
+      banner.lineStyle(2, 0xffd700);
+      banner.strokeRoundedRect(width / 2 - 85, safe.top + 5, 170, 28, 8);
+      
+      this.add.text(width / 2, safe.top + 19, '👑 CHAMPION BATTLE', {
+        fontFamily: 'Georgia, serif',
+        fontSize: '14px',
+        color: '#ffd700',
+        stroke: '#000000',
+        strokeThickness: 2
+      }).setOrigin(0.5);
+    } else if (isElite) {
+      const banner = this.add.graphics();
+      banner.fillStyle(0x4a1a1a, 0.9);
+      banner.fillRoundedRect(width / 2 - 65, safe.top + 5, 130, 26, 8);
+      banner.lineStyle(2, 0xcd5c5c);
+      banner.strokeRoundedRect(width / 2 - 65, safe.top + 5, 130, 26, 8);
+      
+      this.add.text(width / 2, safe.top + 18, '💀 ELITE FIGHT', {
+        fontFamily: 'Georgia, serif',
+        fontSize: '13px',
+        color: '#cd5c5c',
+        stroke: '#000000',
+        strokeThickness: 2
+      }).setOrigin(0.5);
+    }
+    
+    // Regular header (pushed down for elite/champion)
+    const headerY = (isElite || isChampion) ? safe.top + 45 : safe.top + 20;
+    
+    this.add.text(width / 2, headerY, 'PREPARE FOR BATTLE', {
       fontFamily: 'Georgia, serif',
       fontSize: '18px',
       color: '#c9a959'
     }).setOrigin(0.5);
     
-    this.add.text(width / 2, safe.top + 42, 'Choose your equipment', {
+    this.add.text(width / 2, headerY + 22, 'Choose your equipment', {
       fontFamily: 'Georgia, serif',
       fontSize: '11px',
       color: '#8b7355'
@@ -712,6 +752,11 @@ export class PrepareScene extends Phaser.Scene {
     const previewY = height * 0.68;
     const previewW = width - safe.left - safe.right;
     
+    // Get combat params for elite/champion detection
+    const combatParams = this.registry.get('combatParams') as CombatEntryParams | undefined;
+    const isElite = combatParams?.isElite || combatParams?.nodeType === 'elite' || false;
+    const isChampion = combatParams?.isChampion || combatParams?.nodeType === 'champion' || false;
+    
     // If no enemy class, generate a random one for display
     const run = SaveSystem.getRun();
     if (!this.enemyClass) {
@@ -725,16 +770,37 @@ export class PrepareScene extends Phaser.Scene {
     
     const enemy = this.enemyClass;
     
-    // Enemy info box
-    const bg = this.add.graphics();
-    bg.fillStyle(0x2a1a1a, 0.9);
-    bg.fillRoundedRect(safe.left, previewY, previewW, 85, 5);
-    bg.lineStyle(1, 0x8b0000, 0.5);
-    bg.strokeRoundedRect(safe.left, previewY, previewW, 85, 5);
+    // Enemy info box - different colors for elite/champion
+    const boxHeight = (isElite || isChampion) ? 105 : 85;
+    const bgColor = isChampion ? 0x2a1a3a : isElite ? 0x3a1a1a : 0x2a1a1a;
+    const borderColor = isChampion ? 0xffd700 : isElite ? 0xcd5c5c : 0x8b0000;
     
-    this.add.text(safe.left + 15, previewY + 10, `${enemy.icon} FACING: ${enemy.name.toUpperCase()}`, {
-      fontFamily: 'Georgia, serif', fontSize: '12px', color: '#c9a959'
+    const bg = this.add.graphics();
+    bg.fillStyle(bgColor, 0.9);
+    bg.fillRoundedRect(safe.left, previewY, previewW, boxHeight, 5);
+    bg.lineStyle(2, borderColor, isChampion || isElite ? 1 : 0.5);
+    bg.strokeRoundedRect(safe.left, previewY, previewW, boxHeight, 5);
+    
+    // Enemy type prefix
+    const typePrefix = isChampion ? '👑 ' : isElite ? '💀 ' : '';
+    const typeLabel = isChampion ? ' (CHAMPION)' : isElite ? ' (ELITE)' : '';
+    const titleColor = isChampion ? '#ffd700' : isElite ? '#cd5c5c' : '#c9a959';
+    
+    this.add.text(safe.left + 15, previewY + 10, `${typePrefix}${enemy.icon} FACING: ${enemy.name.toUpperCase()}${typeLabel}`, {
+      fontFamily: 'Georgia, serif', fontSize: '12px', color: titleColor
     });
+    
+    // Show rewards info for elite/champion
+    if (isElite || isChampion) {
+      const rewardText = isChampion 
+        ? '🏆 Boss Rewards: +3x Gold, +Epic Loot' 
+        : '💰 Elite Rewards: +2x Gold, +Rare Loot';
+      this.add.text(safe.left + 15, previewY + boxHeight - 22, rewardText, {
+        fontFamily: 'Georgia, serif', 
+        fontSize: '9px', 
+        color: titleColor
+      });
+    }
     
     this.add.text(safe.left + 15, previewY + 28, enemy.title, {
       fontFamily: 'Georgia, serif', fontSize: '10px', color: '#8b7355'
@@ -804,9 +870,13 @@ export class PrepareScene extends Phaser.Scene {
     
     // Back button (using new Button component)
     new Button(this, safe.left + 70, btnY, '← BACK', () => {
+      // Cancel the in-progress node since player backed out
+      this.cancelInProgressNode();
+      
       this.cameras.main.fadeOut(200);
       this.cameras.main.once('camerafadeoutcomplete', () => {
-        this.scene.start('CampScene');
+        // Return to map, not camp
+        this.scene.start('RunMapScene');
       });
     }, { width: 110, height: 44 });
     
@@ -834,5 +904,17 @@ export class PrepareScene extends Phaser.Scene {
       this.itemListContainer.destroy();
     }
     this.createItemList();
+  }
+  
+  /**
+   * Cancel the in-progress node when player backs out
+   */
+  private cancelInProgressNode(): void {
+    const run = SaveSystem.getRun();
+    if (run.runMap && run.runMap.inProgressNodeId) {
+      console.log('[PrepareScene] Cancelling in-progress node:', run.runMap.inProgressNodeId);
+      cancelNode(run.runMap);
+      SaveSystem.updateRun({ runMap: run.runMap as any });
+    }
   }
 }

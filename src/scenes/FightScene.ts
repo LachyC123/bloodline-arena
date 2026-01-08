@@ -87,6 +87,11 @@ export class FightScene extends Phaser.Scene {
     });
   }
   
+  // Encounter type for UI styling
+  private isEliteFight: boolean = false;
+  private isChampionFight: boolean = false;
+  private encounterNodeId: string | undefined;
+
   private initializeCombat(): void {
     const run = SaveSystem.getRun();
     if (!run) {
@@ -107,6 +112,14 @@ export class FightScene extends Phaser.Scene {
     
     // Try to get enemy from encounter or generate new one
     const encounter = this.registry.get('currentEncounter') as CurrentEncounter | undefined;
+    const combatParams = this.registry.get('combatParams') as { isElite?: boolean; isChampion?: boolean; nodeType?: string; nodeId?: string } | undefined;
+    
+    // Determine encounter type for UI styling
+    this.isEliteFight = encounter?.isElite || combatParams?.isElite || combatParams?.nodeType === 'elite' || false;
+    this.isChampionFight = encounter?.isChampion || combatParams?.isChampion || combatParams?.nodeType === 'champion' || false;
+    this.encounterNodeId = encounter?.nodeId || combatParams?.nodeId;
+    
+    console.log(`[FightScene] Encounter: isElite=${this.isEliteFight}, isChampion=${this.isChampionFight}`);
     
     if (encounter?.enemy) {
       console.log('[FightScene] Using prepared encounter enemy');
@@ -356,6 +369,73 @@ export class FightScene extends Phaser.Scene {
     });
   }
 
+  private createEliteBadge(width: number, topY: number): void {
+    // Elite banner background
+    const banner = this.add.graphics();
+    banner.fillStyle(0x4a1a1a, 0.9);
+    banner.fillRoundedRect(width / 2 - 60, topY + 5, 120, 30, 8);
+    banner.lineStyle(2, 0xcd5c5c);
+    banner.strokeRoundedRect(width / 2 - 60, topY + 5, 120, 30, 8);
+    
+    // Elite text
+    this.add.text(width / 2, topY + 20, '💀 ELITE FIGHT', {
+      fontFamily: 'Georgia, serif',
+      fontSize: '12px',
+      color: '#cd5c5c',
+      stroke: '#000000',
+      strokeThickness: 2
+    }).setOrigin(0.5);
+    
+    // Pulsing glow
+    const glow = this.add.graphics();
+    glow.lineStyle(2, 0xcd5c5c, 0.4);
+    glow.strokeRoundedRect(width / 2 - 64, topY + 1, 128, 38, 10);
+    
+    this.tweens.add({
+      targets: glow,
+      alpha: { from: 0.8, to: 0.2 },
+      duration: 1200,
+      yoyo: true,
+      repeat: -1
+    });
+  }
+  
+  private createChampionBadge(width: number, topY: number): void {
+    // Champion banner background (larger, more ornate)
+    const banner = this.add.graphics();
+    banner.fillStyle(0x2a1a3a, 0.9);
+    banner.fillRoundedRect(width / 2 - 80, topY + 5, 160, 35, 10);
+    banner.lineStyle(3, 0xffd700);
+    banner.strokeRoundedRect(width / 2 - 80, topY + 5, 160, 35, 10);
+    
+    // Champion text
+    this.add.text(width / 2, topY + 22, '👑 CHAMPION BATTLE', {
+      fontFamily: 'Georgia, serif',
+      fontSize: '13px',
+      color: '#ffd700',
+      stroke: '#000000',
+      strokeThickness: 2
+    }).setOrigin(0.5);
+    
+    // Golden glow
+    const glow = this.add.graphics();
+    glow.lineStyle(3, 0xffd700, 0.3);
+    glow.strokeRoundedRect(width / 2 - 84, topY + 1, 168, 43, 12);
+    
+    this.tweens.add({
+      targets: glow,
+      alpha: { from: 0.6, to: 0.1 },
+      duration: 800,
+      yoyo: true,
+      repeat: -1
+    });
+    
+    // Show intro stinger text
+    this.time.delayedCall(500, () => {
+      this.showCombatMessage('CHAMPION OF THE LEAGUE!');
+    });
+  }
+
   private createBackground(): void {
     const { width, height } = this.cameras.main;
     
@@ -423,8 +503,16 @@ export class FightScene extends Phaser.Scene {
     const { width, height } = this.cameras.main;
     const safe = getSafeArea();
     
-    // Round indicator
-    this.roundText = this.add.text(width / 2, safe.top + 15, `ROUND ${this.combatState.round}`, {
+    // Elite/Champion badge at top center
+    if (this.isChampionFight) {
+      this.createChampionBadge(width, safe.top);
+    } else if (this.isEliteFight) {
+      this.createEliteBadge(width, safe.top);
+    }
+    
+    // Round indicator (pushed down slightly if elite/champion)
+    const roundY = (this.isEliteFight || this.isChampionFight) ? safe.top + 45 : safe.top + 15;
+    this.roundText = this.add.text(width / 2, roundY, `ROUND ${this.combatState.round}`, {
       fontFamily: 'Georgia, serif',
       fontSize: '14px',
       color: '#c9a959'
@@ -1073,13 +1161,19 @@ export class FightScene extends Phaser.Scene {
       
       await this.delay(1500);
       
+      // Get encounter info for results
+      const encounter = this.registry.get('currentEncounter');
+      const combatParams = this.registry.get('combatParams');
+      
       this.cameras.main.fadeOut(300);
       this.cameras.main.once('camerafadeoutcomplete', () => {
         this.scene.start('ResultsScene', { 
           won: true, 
           rewards,
           injury,
-          enemy: this.enemy
+          enemy: this.enemy,
+          nodeId: encounter?.nodeId || combatParams?.nodeId,
+          encounterType: encounter?.nodeType || combatParams?.nodeType || 'fight'
         });
       });
     } else {

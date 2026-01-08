@@ -11,7 +11,9 @@ import {
   NODE_CONFIGS, 
   generateRunMap, 
   getAccessibleNodes, 
-  completeNode,
+  startNode,
+  selectNode,
+  deselectNode,
   getNodeById 
 } from '../data/runMap';
 import { Button, setInputDebug } from '../ui/Button';
@@ -196,25 +198,43 @@ export class RunMapScene extends Phaser.Scene {
     });
   }
   
-  private createNodeVisual(node: MapNode, x: number, y: number, size: number): void {
+  private createNodeVisual(node: MapNode, x: number, y: number, baseSize: number): void {
     const config = NODE_CONFIGS[node.type];
     const isAccessible = this.isNodeAccessible(node.id);
     const isCurrent = this.runMap.currentNodeId === node.id;
     const isSelected = this.selectedNodeId === node.id;
+    const isInProgress = this.runMap.inProgressNodeId === node.id;
+    
+    // Elite and Champion nodes are LARGER
+    const isElite = node.type === 'elite';
+    const isChampion = node.type === 'champion';
+    const size = isChampion ? baseSize * 1.4 : isElite ? baseSize * 1.2 : baseSize;
     
     // Determine colors
     let bgColor = 0x2a1f1a;  // Default locked
     let borderColor = 0x5a4a3a;
     
-    if (node.completed) {
+    if (node.completed || node.status === 'completed') {
       bgColor = 0x1a3a1a;  // Green - completed
       borderColor = 0x3a6a3a;
+    } else if (isInProgress) {
+      bgColor = 0x3a3a2a;  // Yellow - in progress
+      borderColor = 0xffa500;
     } else if (isSelected) {
       bgColor = 0x4a4a2a;  // Selected
       borderColor = 0xffd700;
     } else if (isAccessible) {
-      bgColor = 0x3a3a2a;  // Yellow tint - accessible
-      borderColor = 0xc9a959;
+      // Special colors for elite/champion when accessible
+      if (isChampion) {
+        bgColor = 0x3a2a3a;  // Purple tint
+        borderColor = 0xffd700;  // Gold border
+      } else if (isElite) {
+        bgColor = 0x3a2a2a;  // Red tint
+        borderColor = 0xcd5c5c;  // Red border
+      } else {
+        bgColor = 0x3a3a2a;  // Yellow tint - accessible
+        borderColor = 0xc9a959;
+      }
     } else if (isCurrent) {
       bgColor = 0x4a3a2a;
       borderColor = 0xffd700;
@@ -225,7 +245,7 @@ export class RunMapScene extends Phaser.Scene {
     bg.setDepth(5);
     bg.fillStyle(bgColor, 1);
     bg.fillCircle(x, y, size / 2);
-    bg.lineStyle(3, borderColor, 1);
+    bg.lineStyle(isChampion ? 4 : isElite ? 3 : 2, borderColor, 1);
     bg.strokeCircle(x, y, size / 2);
     
     // Store reference for updates
@@ -233,21 +253,69 @@ export class RunMapScene extends Phaser.Scene {
     (node as any)._bgColor = bgColor;
     (node as any)._borderColor = borderColor;
     
-    // Icon
-    const icon = this.add.text(x, y, config.icon, {
-      fontSize: '20px'
+    // Elite/Champion glow effect
+    if ((isElite || isChampion) && isAccessible && !node.completed) {
+      const glowColor = isChampion ? 0xffd700 : 0xcd5c5c;
+      const glow = this.add.graphics();
+      glow.setDepth(3);
+      glow.lineStyle(2, glowColor, 0.3);
+      glow.strokeCircle(x, y, size / 2 + 6);
+      
+      // Pulsing glow animation
+      this.tweens.add({
+        targets: glow,
+        alpha: { from: 0.8, to: 0.2 },
+        duration: 1000,
+        yoyo: true,
+        repeat: -1
+      });
+    }
+    
+    // Icon - larger for elite/champion
+    const iconSize = isChampion ? '28px' : isElite ? '24px' : '20px';
+    const icon = this.add.text(x, y - (isChampion || isElite ? 4 : 0), config.icon, {
+      fontSize: iconSize
     }).setOrigin(0.5).setDepth(6);
     
+    // Elite badge
+    if (isElite && isAccessible && !node.completed) {
+      this.add.text(x, y + size / 2 - 4, 'ELITE', {
+        fontFamily: 'Georgia, serif',
+        fontSize: '8px',
+        color: '#cd5c5c',
+        stroke: '#000000',
+        strokeThickness: 2
+      }).setOrigin(0.5).setDepth(7);
+    }
+    
+    // Champion badge
+    if (isChampion && isAccessible && !node.completed) {
+      this.add.text(x, y + size / 2 - 4, '👑 BOSS', {
+        fontFamily: 'Georgia, serif',
+        fontSize: '9px',
+        color: '#ffd700',
+        stroke: '#000000',
+        strokeThickness: 2
+      }).setOrigin(0.5).setDepth(7);
+    }
+    
     // Completed checkmark
-    if (node.completed) {
+    if (node.completed || node.status === 'completed') {
       this.add.text(x + size / 2 - 8, y - size / 2 + 8, '✓', {
         fontSize: '14px',
         color: '#4a8a4a'
       }).setOrigin(0.5).setDepth(7);
     }
     
+    // In-progress indicator
+    if (isInProgress) {
+      this.add.text(x + size / 2 - 8, y - size / 2 + 8, '⏳', {
+        fontSize: '12px'
+      }).setOrigin(0.5).setDepth(7);
+    }
+    
     // Current indicator pulse
-    if (isCurrent) {
+    if (isCurrent && !isInProgress) {
       const pulse = this.add.graphics();
       pulse.setDepth(4);
       pulse.lineStyle(2, 0xffd700, 0.5);
@@ -263,7 +331,8 @@ export class RunMapScene extends Phaser.Scene {
     }
     
     // Create SEPARATE hit rectangle for interaction (NOT inside container)
-    if (isAccessible && !node.completed) {
+    const isNodeAvailable = isAccessible && !node.completed && node.status !== 'completed';
+    if (isNodeAvailable) {
       const hitRect = this.add.rectangle(x, y, size + 10, size + 10, 0x000000, 0);
       hitRect.setDepth(100); // Above everything for clicks
       hitRect.setInteractive({ useHandCursor: true });
@@ -392,29 +461,59 @@ export class RunMapScene extends Phaser.Scene {
     if (!node) return;
     
     const config = NODE_CONFIGS[node.type];
+    const isElite = node.type === 'elite';
+    const isChampion = node.type === 'champion';
     
-    // Node info
-    const title = this.add.text(25, panelY + 15, `${config.icon} ${config.name}`, {
+    // Node info with elite/champion styling
+    const titleColor = isChampion ? '#ffd700' : isElite ? '#cd5c5c' : '#c9a959';
+    const titlePrefix = isChampion ? '👑 ' : isElite ? '💀 ' : '';
+    
+    const title = this.add.text(25, panelY + 12, `${titlePrefix}${config.icon} ${config.name}`, {
       fontFamily: 'Georgia, serif',
-      fontSize: '16px',
-      color: '#c9a959'
+      fontSize: isChampion || isElite ? '15px' : '14px',
+      color: titleColor
     });
     this.infoPanel.add(title);
     
-    const desc = this.add.text(25, panelY + 40, config.description, {
+    const desc = this.add.text(25, panelY + 32, config.description, {
       fontFamily: 'Georgia, serif',
-      fontSize: '12px',
+      fontSize: '11px',
       color: '#8b7355'
     });
     this.infoPanel.add(desc);
     
+    // Elite/Champion rewards preview
+    if (isElite || isChampion) {
+      const rewardColor = isChampion ? '#ffd700' : '#cd5c5c';
+      const rewardText = isChampion 
+        ? '🏆 +3x Gold, +Epic Loot, +Mutators' 
+        : '💰 +2x Gold, +Rare Loot, +Mutator';
+      
+      this.add.text(25, panelY + 50, rewardText, {
+        fontFamily: 'Georgia, serif',
+        fontSize: '9px',
+        color: rewardColor
+      });
+      
+      // Warning text
+      const warningText = isChampion
+        ? '⚠️ League Boss - Prepare well!'
+        : '⚠️ Harder enemy, better rewards';
+      this.add.text(25, panelY + 65, warningText, {
+        fontFamily: 'Georgia, serif',
+        fontSize: '9px',
+        color: '#8b7355'
+      });
+    }
+    
     // Travel button using Button component - ensure it's above info panel
-    const travelBtn = new Button(this, width - 80, panelY + panelH / 2, 'TRAVEL', () => {
+    const btnText = isChampion ? '⚔️ CHALLENGE' : isElite ? '⚔️ FIGHT' : 'TRAVEL';
+    const travelBtn = new Button(this, width - 80, panelY + panelH / 2, btnText, () => {
       if (this.debugMode) {
         console.log('[RunMap] Travel button clicked for node:', node.id);
       }
       this.travelToNode(node);
-    }, { width: 100, height: 40, fontSize: 14, primary: true });
+    }, { width: 110, height: 40, fontSize: 13, primary: true });
     travelBtn.setDepth(30); // Above info panel
   }
   
@@ -425,9 +524,15 @@ export class RunMapScene extends Phaser.Scene {
       console.log('[RunMap] Traveling to node:', node.id, node.type);
     }
     
-    // Complete the node (mark as current destination)
-    completeNode(this.runMap, node.id);
-    SaveSystem.updateRun({ runMap: this.runMap as any });
+    // For combat nodes, mark as in_progress (NOT completed!)
+    // Node will only be marked completed after winning the fight
+    const isCombatNode = ['fight', 'elite', 'champion', 'rival'].includes(node.type);
+    
+    if (isCombatNode) {
+      // Mark node as in progress (can be reverted if player backs out)
+      startNode(this.runMap, node.id);
+      SaveSystem.updateRun({ runMap: this.runMap as any });
+    }
     
     // Route to appropriate scene based on node type
     switch (node.type) {
@@ -454,23 +559,40 @@ export class RunMapScene extends Phaser.Scene {
         });
         break;
       case 'shop':
+        // Non-combat nodes: complete immediately (visit counts as completion)
+        this.completeNonCombatNode(node.id);
         this.safeTransition('ShopScene');
         break;
       case 'forge':
+        this.completeNonCombatNode(node.id);
         this.safeTransition('ForgeScene');
         break;
       case 'clinic':
+        this.completeNonCombatNode(node.id);
         this.safeTransition('CampScene');
         break;
       case 'event':
+        this.completeNonCombatNode(node.id);
         this.safeTransition('VignetteScene');
         break;
       case 'camp':
+        this.completeNonCombatNode(node.id);
         this.safeTransition('CampScene');
         break;
       default:
         this.safeTransition('CampScene');
     }
+  }
+  
+  /**
+   * Complete a non-combat node (shop, forge, etc.)
+   * These complete on visit since there's no win/loss outcome
+   */
+  private completeNonCombatNode(nodeId: string): void {
+    const { completeNode } = require('../data/runMap');
+    completeNode(this.runMap, nodeId);
+    SaveSystem.updateRun({ runMap: this.runMap as any });
+    console.log(`[RunMap] Non-combat node ${nodeId} completed on visit`);
   }
   
   /**

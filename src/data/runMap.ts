@@ -5,13 +5,16 @@
 
 export type NodeType = 'fight' | 'elite' | 'shop' | 'clinic' | 'event' | 'forge' | 'rival' | 'champion' | 'camp';
 
+export type NodeStatus = 'available' | 'locked' | 'in_progress' | 'completed';
+
 export interface MapNode {
   id: string;
   type: NodeType;
   x: number;  // Position in the map (0-1)
   y: number;  // Row (0 = start, increases upward)
   connections: string[];  // Node IDs this connects to
-  completed: boolean;
+  completed: boolean;  // Legacy - use status instead
+  status?: NodeStatus;  // New: explicit node state
   biomeId?: string;
   contractIds?: string[];
   enemyId?: string;
@@ -21,7 +24,9 @@ export interface MapNode {
 export interface RunMap {
   league: string;
   nodes: MapNode[];
-  currentNodeId: string | null;
+  currentNodeId: string | null;  // Last completed node
+  selectedNodeId: string | null;  // Currently selected/viewing node
+  inProgressNodeId: string | null;  // Node being attempted (in fight)
   startNodeIds: string[];
   bossNodeId: string;
 }
@@ -196,6 +201,8 @@ export function generateRunMap(league: string, seed?: number): RunMap {
     league,
     nodes,
     currentNodeId: null,
+    selectedNodeId: null,
+    inProgressNodeId: null,
     startNodeIds: rows[0],
     bossNodeId: nodes.find(n => n.type === 'champion')?.id || nodes[nodes.length - 1].id
   };
@@ -246,12 +253,62 @@ export function getAccessibleNodes(map: RunMap): MapNode[] {
   return map.nodes.filter(n => current.connections.includes(n.id) && !n.completed);
 }
 
+/**
+ * Mark a node as in progress (player is attempting it)
+ * Call this when entering a fight, NOT when selecting
+ */
+export function startNode(map: RunMap, nodeId: string): void {
+  const node = getNodeById(map, nodeId);
+  if (node) {
+    node.status = 'in_progress';
+    map.inProgressNodeId = nodeId;
+    console.log(`[RunMap] Node ${nodeId} marked as in_progress`);
+  }
+}
+
+/**
+ * Mark a node as completed (fight won or non-combat node finished)
+ * ONLY call this after actual completion, not on selection!
+ */
 export function completeNode(map: RunMap, nodeId: string): void {
   const node = getNodeById(map, nodeId);
   if (node) {
     node.completed = true;
+    node.status = 'completed';
     map.currentNodeId = nodeId;
+    map.inProgressNodeId = null;
+    map.selectedNodeId = null;
+    console.log(`[RunMap] Node ${nodeId} marked as completed`);
   }
+}
+
+/**
+ * Cancel an in-progress node (player backed out without completing)
+ */
+export function cancelNode(map: RunMap): void {
+  if (map.inProgressNodeId) {
+    const node = getNodeById(map, map.inProgressNodeId);
+    if (node && node.status === 'in_progress') {
+      node.status = 'available';
+      console.log(`[RunMap] Node ${map.inProgressNodeId} cancelled, reverted to available`);
+    }
+    map.inProgressNodeId = null;
+  }
+}
+
+/**
+ * Select a node for preview (does NOT mark as in progress)
+ */
+export function selectNode(map: RunMap, nodeId: string): void {
+  map.selectedNodeId = nodeId;
+  console.log(`[RunMap] Node ${nodeId} selected for preview`);
+}
+
+/**
+ * Deselect currently selected node
+ */
+export function deselectNode(map: RunMap): void {
+  map.selectedNodeId = null;
 }
 
 export function isMapComplete(map: RunMap): boolean {
