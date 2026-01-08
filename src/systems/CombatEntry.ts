@@ -76,27 +76,58 @@ export function generateEncounterEnemy(
 ): { success: boolean; enemy?: EnemyLike; error?: string } {
   try {
     // Determine enemy tier
-    const tier = params.isChampion ? 'champion' : params.isElite ? 'elite' : 'normal';
+    const isElite = params.isElite || params.nodeType === 'elite';
+    const isChampion = params.isChampion || params.nodeType === 'champion';
+    const tier = isChampion ? 'champion' : isElite ? 'elite' : 'normal';
     
     console.log(`[CombatEntry] Generating enemy: league=${league}, week=${week}, tier=${tier}`);
+    console.log(`[CombatEntry] isElite=${isElite}, isChampion=${isChampion}, nodeType=${params.nodeType}`);
     
-    // Generate enemy
+    // Generate base enemy
     const enemy = generateEnemy(league as any, week);
     
     if (!enemy) {
+      console.error('[CombatEntry] generateEnemy returned null/undefined');
       return { success: false, error: 'Enemy generation returned null' };
     }
     
     if (!enemy.firstName || !enemy.currentStats) {
+      console.error('[CombatEntry] Enemy missing required properties:', {
+        hasFirstName: !!enemy.firstName,
+        hasCurrentStats: !!enemy.currentStats
+      });
       return { success: false, error: 'Generated enemy is incomplete' };
     }
     
-    console.log(`[CombatEntry] Generated enemy: ${enemy.firstName} "${enemy.nickname}"`);
+    // Apply elite/champion stat multipliers
+    if (isElite) {
+      console.log('[CombatEntry] Applying elite stat buffs');
+      enemy.currentStats.maxHP = Math.round(enemy.currentStats.maxHP * 1.3);
+      enemy.currentStats.currentHP = enemy.currentStats.maxHP;
+      enemy.currentStats.attack = Math.round(enemy.currentStats.attack * 1.2);
+      enemy.currentStats.defense = Math.round(enemy.currentStats.defense * 1.15);
+      enemy.nickname = `Elite ${enemy.nickname}`;
+    }
+    
+    if (isChampion) {
+      console.log('[CombatEntry] Applying champion stat buffs');
+      enemy.currentStats.maxHP = Math.round(enemy.currentStats.maxHP * 1.5);
+      enemy.currentStats.currentHP = enemy.currentStats.maxHP;
+      enemy.currentStats.attack = Math.round(enemy.currentStats.attack * 1.4);
+      enemy.currentStats.defense = Math.round(enemy.currentStats.defense * 1.3);
+      enemy.currentStats.critChance += 10;
+      enemy.nickname = `Champion ${enemy.nickname}`;
+    }
+    
+    console.log(`[CombatEntry] Generated ${tier} enemy: ${enemy.firstName} "${enemy.nickname}"`);
+    console.log(`[CombatEntry] Enemy stats: HP=${enemy.currentStats.maxHP}, ATK=${enemy.currentStats.attack}, DEF=${enemy.currentStats.defense}`);
     
     return { success: true, enemy };
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
+    const stack = e instanceof Error ? e.stack : '';
     console.error('[CombatEntry] Enemy generation failed:', e);
+    console.error('[CombatEntry] Stack:', stack);
     return { success: false, error: `Enemy generation failed: ${error}` };
   }
 }

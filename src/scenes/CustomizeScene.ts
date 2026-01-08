@@ -419,13 +419,28 @@ export class CustomizeScene extends Phaser.Scene {
       const hitArea = this.add.rectangle(cardWidth / 2, 27, cardWidth, 55, 0x000000, 0);
       hitArea.setInteractive({ useHandCursor: true });
       hitArea.on('pointerdown', () => {
+        console.log(`[Customize] Option selected: type=${type}, id=${option.id}`);
+        
+        // Toggle selection
         if (type === 'philosophy') {
           this.selectedPhilosophy = this.selectedPhilosophy === option.id ? null : option.id;
+          // Save immediately
+          SaveSystem.setPhilosophy(this.selectedPhilosophy);
+          console.log(`[Customize] Philosophy saved: ${this.selectedPhilosophy}`);
         } else if (type === 'background') {
           this.selectedBackground = this.selectedBackground === option.id ? null : option.id;
+          // Save immediately
+          SaveSystem.setBackground(this.selectedBackground);
+          console.log(`[Customize] Background saved: ${this.selectedBackground}`);
         } else {
           this.selectedTechnique = this.selectedTechnique === option.id ? null : option.id;
+          // Save immediately
+          SaveSystem.setStartingTechnique(this.selectedTechnique);
+          console.log(`[Customize] Technique saved: ${this.selectedTechnique}`);
         }
+        
+        // Apply changes to fighter and refresh UI
+        SaveSystem.applyCustomizationToFighter();
         this.updateStatsPreview();
         this.scene.restart();
       });

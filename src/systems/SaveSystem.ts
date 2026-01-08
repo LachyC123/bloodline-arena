@@ -1279,6 +1279,11 @@ class SaveSystemClass {
     const customization = this.data.run.customization;
     const cosmetics = customization.cosmetics;
 
+    console.log('[SaveSystem] Applying customization to fighter');
+    console.log('[SaveSystem] Philosophy:', customization.philosophyId);
+    console.log('[SaveSystem] Background:', customization.backgroundId);
+    console.log('[SaveSystem] Technique:', customization.startingTechniqueId);
+
     // Apply name changes
     if (cosmetics.firstName) fighter.firstName = cosmetics.firstName;
     if (cosmetics.lastName) fighter.lastName = cosmetics.lastName;
@@ -1297,7 +1302,130 @@ class SaveSystemClass {
       hairColor: cosmetics.hairColor
     };
 
+    // Apply stat modifiers from philosophy
+    if (customization.philosophyId) {
+      this.applyPhilosophyStats(fighter, customization.philosophyId);
+    }
+
+    // Apply stat modifiers from background
+    if (customization.backgroundId) {
+      this.applyBackgroundStats(fighter, customization.backgroundId);
+    }
+
+    console.log('[SaveSystem] Fighter stats after customization:', {
+      attack: fighter.currentStats.attack,
+      defense: fighter.currentStats.defense,
+      maxHP: fighter.currentStats.maxHP,
+      maxStamina: fighter.currentStats.maxStamina,
+      critChance: fighter.currentStats.critChance,
+      evasion: fighter.currentStats.evasion
+    });
+
     this.save();
+  }
+
+  // Apply philosophy stat bonuses to fighter
+  private applyPhilosophyStats(fighter: Fighter, philosophyId: string): void {
+    // Import dynamically to avoid circular deps - use inline data
+    const philosophies: Record<string, { damageBonus?: number; defenseBonus?: number; guardBonus?: number; critBonus?: number; dodgeBonus?: number; maxHPBonus?: number; staminaBonus?: number }> = {
+      'aggressive': { damageBonus: 8, guardBonus: -10 },
+      'defensive': { guardBonus: 15, damageBonus: -5 },
+      'opportunist': { critBonus: 8, dodgeBonus: 5, maxHPBonus: -10 },
+      'balanced': { damageBonus: 3, defenseBonus: 3, staminaBonus: 5 }
+    };
+
+    const effects = philosophies[philosophyId];
+    if (!effects) {
+      console.warn('[SaveSystem] Unknown philosophy:', philosophyId);
+      return;
+    }
+
+    console.log('[SaveSystem] Applying philosophy effects:', philosophyId, effects);
+
+    if (effects.damageBonus) fighter.currentStats.attack += effects.damageBonus;
+    if (effects.defenseBonus) fighter.currentStats.defense += effects.defenseBonus;
+    if (effects.guardBonus) {
+      // Guard bonus affects parry window or block effectiveness
+      (fighter.currentStats as any).guardBonus = ((fighter.currentStats as any).guardBonus || 0) + effects.guardBonus;
+    }
+    if (effects.critBonus) fighter.currentStats.critChance += effects.critBonus;
+    if (effects.dodgeBonus) fighter.currentStats.evasion += effects.dodgeBonus;
+    if (effects.maxHPBonus) {
+      fighter.currentStats.maxHP += effects.maxHPBonus;
+      // Also adjust current HP if it was at max
+      if (fighter.currentStats.currentHP > fighter.currentStats.maxHP) {
+        fighter.currentStats.currentHP = fighter.currentStats.maxHP;
+      }
+    }
+    if (effects.staminaBonus) fighter.currentStats.maxStamina += effects.staminaBonus;
+  }
+
+  // Apply background stat bonuses to fighter
+  private applyBackgroundStats(fighter: Fighter, backgroundId: string): void {
+    const backgrounds: Record<string, { perk: { stat: string; value: number } | null; penalty: { stat: string; value: number } | null }> = {
+      'soldier': { perk: { stat: 'defense', value: 5 }, penalty: { stat: 'evasion', value: -3 } },
+      'street_fighter': { perk: { stat: 'critChance', value: 5 }, penalty: { stat: 'defense', value: -2 } },
+      'noble': { perk: { stat: 'accuracy', value: 5 }, penalty: { stat: 'maxHP', value: -5 } },
+      'farmer': { perk: { stat: 'maxStamina', value: 15 }, penalty: { stat: 'speed', value: -2 } },
+      'hunter': { perk: { stat: 'accuracy', value: 10 }, penalty: { stat: 'attack', value: -2 } },
+      'pit_slave': { perk: { stat: 'maxHP', value: 10 }, penalty: { stat: 'maxFocus', value: -5 } }
+    };
+
+    const bg = backgrounds[backgroundId];
+    if (!bg) {
+      console.warn('[SaveSystem] Unknown background:', backgroundId);
+      return;
+    }
+
+    console.log('[SaveSystem] Applying background effects:', backgroundId, bg);
+
+    // Apply perk
+    if (bg.perk) {
+      this.applyStatChange(fighter, bg.perk.stat, bg.perk.value);
+    }
+
+    // Apply penalty
+    if (bg.penalty) {
+      this.applyStatChange(fighter, bg.penalty.stat, bg.penalty.value);
+    }
+  }
+
+  // Helper to apply stat changes
+  private applyStatChange(fighter: Fighter, stat: string, value: number): void {
+    const stats = fighter.currentStats as unknown as Record<string, number>;
+    
+    switch (stat) {
+      case 'attack':
+        stats.attack = (stats.attack || 0) + value;
+        break;
+      case 'defense':
+        stats.defense = (stats.defense || 0) + value;
+        break;
+      case 'maxHP':
+        stats.maxHP = (stats.maxHP || 0) + value;
+        if (stats.currentHP > stats.maxHP) stats.currentHP = stats.maxHP;
+        break;
+      case 'maxStamina':
+        stats.maxStamina = (stats.maxStamina || 0) + value;
+        break;
+      case 'critChance':
+        stats.critChance = (stats.critChance || 0) + value;
+        break;
+      case 'evasion':
+        stats.evasion = (stats.evasion || 0) + value;
+        break;
+      case 'accuracy':
+        stats.accuracy = (stats.accuracy || 0) + value;
+        break;
+      case 'speed':
+        stats.speed = (stats.speed || 0) + value;
+        break;
+      case 'maxFocus':
+        stats.maxFocus = (stats.maxFocus || 0) + value;
+        break;
+      default:
+        console.warn('[SaveSystem] Unknown stat:', stat);
+    }
   }
 
   // ========== DECREES ==========
