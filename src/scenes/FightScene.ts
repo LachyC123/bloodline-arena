@@ -69,7 +69,11 @@ export class FightScene extends Phaser.Scene {
     this.enemy = generateEnemy(run.league as any, run.week);
     this.combatState = initCombat(this.player, this.enemy);
     
+    console.log(`[Combat] Initialized: player speed=${this.player.currentStats.speed}, enemy speed=${this.enemy.currentStats.speed}`);
+    console.log(`[Combat] First turn: ${this.combatState.turn}`);
+    
     this.vfx = new CombatVFXManager(this);
+    this.isInputEnabled = true;
     
     this.createBackground();
     this.createFighters();
@@ -81,6 +85,49 @@ export class FightScene extends Phaser.Scene {
     this.showCombatMessage(taunt);
     
     this.cameras.main.fadeIn(300);
+    
+    // If enemy goes first, start their turn after a delay
+    if (this.combatState.turn === 'enemy') {
+      this.showCombatMessage('Enemy strikes first!');
+      this.disableInput();
+      this.time.delayedCall(1500, () => {
+        this.performEnemyTurn();
+      });
+    } else {
+      // Show player turn indicator
+      this.showTurnIndicator('YOUR TURN');
+    }
+  }
+  
+  private showTurnIndicator(text: string): void {
+    const { width, height } = this.cameras.main;
+    
+    const indicator = this.add.text(width / 2, height * 0.35, text, {
+      fontFamily: 'Georgia, serif',
+      fontSize: '24px',
+      color: text.includes('YOUR') ? '#6b8e23' : '#cd5c5c',
+      stroke: '#000000',
+      strokeThickness: 3
+    }).setOrigin(0.5).setAlpha(0);
+    
+    this.tweens.add({
+      targets: indicator,
+      alpha: 1,
+      y: height * 0.32,
+      duration: 300,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        this.time.delayedCall(800, () => {
+          this.tweens.add({
+            targets: indicator,
+            alpha: 0,
+            y: height * 0.28,
+            duration: 200,
+            onComplete: () => indicator.destroy()
+          });
+        });
+      }
+    });
   }
 
   private createBackground(): void {
@@ -466,13 +513,34 @@ export class FightScene extends Phaser.Scene {
     });
     
     container.on('pointerdown', () => {
-      if (!this.isInputEnabled) return;
+      console.log(`[Combat] Button pressed: ${action}, inputEnabled=${this.isInputEnabled}, turn=${this.combatState?.turn}`);
+      if (!this.isInputEnabled) {
+        console.log('[Combat] Input disabled, ignoring');
+        return;
+      }
       this.performAction(action);
     });
   }
 
   private async performAction(action: CombatAction): Promise<void> {
-    if (!this.isInputEnabled || this.combatState.turn !== 'player' || this.combatState.phase === 'end') return;
+    console.log(`[Combat] performAction: ${action}, turn=${this.combatState.turn}, phase=${this.combatState.phase}, inputEnabled=${this.isInputEnabled}`);
+    
+    if (!this.isInputEnabled) {
+      console.log('[Combat] Blocked: input disabled');
+      this.showCombatMessage('Please wait...');
+      return;
+    }
+    
+    if (this.combatState.turn !== 'player') {
+      console.log('[Combat] Blocked: not player turn');
+      this.showCombatMessage("Wait for your turn!");
+      return;
+    }
+    
+    if (this.combatState.phase === 'end') {
+      console.log('[Combat] Blocked: combat ended');
+      return;
+    }
     
     // Check stamina
     const staminaCosts: Record<CombatAction, number> = {
@@ -495,15 +563,18 @@ export class FightScene extends Phaser.Scene {
     }
     
     this.disableInput();
+    console.log('[Combat] Starting action:', action);
     
-    // Animate player action
-    await this.animatePlayerAction(action);
-    
-    // Execute game logic
-    const result = executeAction(this.combatState, 'player', action, this.selectedZone);
-    
-    // Show result
-    this.showCombatMessage(result.message);
+    try {
+      // Animate player action
+      await this.animatePlayerAction(action);
+      
+      // Execute game logic
+      const result = executeAction(this.combatState, 'player', action, this.selectedZone);
+      console.log('[Combat] Action result:', result);
+      
+      // Show result
+      this.showCombatMessage(result.message);
     
     // Show damage numbers
     if (result.damage > 0) {
@@ -534,6 +605,13 @@ export class FightScene extends Phaser.Scene {
     // Enemy turn after delay
     await this.delay(800);
     await this.performEnemyTurn();
+    
+    } catch (error) {
+      console.error('[Combat] Error during action:', error);
+      this.showCombatMessage('Action failed!');
+      // Re-enable input so player can try again
+      this.enableInput();
+    }
   }
   
   private async animatePlayerAction(action: CombatAction): Promise<void> {
@@ -632,7 +710,9 @@ export class FightScene extends Phaser.Scene {
     // Back to player turn
     await this.delay(500);
     nextTurn(this.combatState);
+    this.showTurnIndicator('YOUR TURN');
     this.enableInput();
+    console.log('[Combat] Player turn started, input enabled');
   }
   
   private async animateEnemyAction(action: CombatAction): Promise<void> {

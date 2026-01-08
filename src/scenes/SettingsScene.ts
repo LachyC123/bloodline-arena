@@ -79,6 +79,15 @@ export class SettingsScene extends Phaser.Scene {
       color: '#5a4a3a',
       fontStyle: 'italic'
     }).setOrigin(0.5);
+    
+    // Developer settings
+    this.add.text(width / 2, startY + 430, '─── DEVELOPER ───', {
+      fontFamily: 'Georgia, serif',
+      fontSize: '12px',
+      color: '#5a4a3a'
+    }).setOrigin(0.5);
+    
+    this.createToggle('debugMode', 'Debug Mode', 'Show debug overlay with game state', startY + 470);
   }
 
   private createToggle(

@@ -59,41 +59,107 @@ export class ResultsScene extends Phaser.Scene {
   private createResultsDisplay(): void {
     const { width } = this.cameras.main;
     
-    // Victory/Defeat banner
+    // Victory/Defeat banner with animation
     const resultText = this.resultsData.won ? 'VICTORY!' : 'DEFEAT';
     const resultColor = this.resultsData.won ? '#c9a959' : '#8b0000';
     
-    this.add.text(width / 2, 80, resultText, {
+    const banner = this.add.text(width / 2, 80, resultText, {
       fontFamily: 'Georgia, serif',
-      fontSize: '36px',
+      fontSize: '40px',
       color: resultColor,
       stroke: '#000000',
-      strokeThickness: 4
+      strokeThickness: 5
     }).setOrigin(0.5);
+    
+    // Animate banner entrance
+    banner.setScale(0);
+    this.tweens.add({
+      targets: banner,
+      scale: 1,
+      duration: 400,
+      ease: 'Back.easeOut'
+    });
+    
+    // Add victory crown/defeat skull
+    if (this.resultsData.won) {
+      const crown = this.add.text(width / 2, 35, '👑', {
+        fontSize: '32px'
+      }).setOrigin(0.5).setAlpha(0);
+      
+      this.tweens.add({
+        targets: crown,
+        alpha: 1,
+        y: 40,
+        duration: 300,
+        delay: 300,
+        ease: 'Back.easeOut'
+      });
+    } else {
+      const skull = this.add.text(width / 2, 35, '💀', {
+        fontSize: '32px'
+      }).setOrigin(0.5).setAlpha(0);
+      
+      this.tweens.add({
+        targets: skull,
+        alpha: 1,
+        y: 40,
+        duration: 300,
+        delay: 300
+      });
+    }
     
     // Enemy defeated
     if (this.resultsData.won) {
-      this.add.text(width / 2, 130, `${this.resultsData.enemy.fullName} has fallen!`, {
+      const enemyText = this.add.text(width / 2, 130, `${this.resultsData.enemy.fullName} has fallen!`, {
         fontFamily: 'Georgia, serif',
-        fontSize: '14px',
+        fontSize: '15px',
         color: '#8b7355',
         fontStyle: 'italic'
-      }).setOrigin(0.5);
+      }).setOrigin(0.5).setAlpha(0);
+      
+      this.tweens.add({
+        targets: enemyText,
+        alpha: 1,
+        duration: 300,
+        delay: 500
+      });
     }
     
-    // Injury notification
+    // Injury notification with warning style
     if (this.resultsData.injury) {
-      this.add.text(width / 2, 160, `⚠️ INJURY: ${this.resultsData.injury.name}`, {
+      const injuryContainer = this.add.container(width / 2, 175);
+      
+      // Background for injury
+      const injuryBg = this.add.graphics();
+      injuryBg.fillStyle(0x2a1a10, 0.8);
+      injuryBg.fillRoundedRect(-120, -25, 240, 50, 8);
+      injuryBg.lineStyle(2, 0x8b4513, 1);
+      injuryBg.strokeRoundedRect(-120, -25, 240, 50, 8);
+      injuryContainer.add(injuryBg);
+      
+      const injuryTitle = this.add.text(0, -10, `⚠️ ${this.resultsData.injury.name.toUpperCase()}`, {
         fontFamily: 'Georgia, serif',
         fontSize: '14px',
-        color: '#8b4513'
+        color: '#cd5c5c'
       }).setOrigin(0.5);
+      injuryContainer.add(injuryTitle);
       
-      this.add.text(width / 2, 180, this.resultsData.injury.effect, {
+      const injuryEffect = this.add.text(0, 10, this.resultsData.injury.effect, {
         fontFamily: 'Georgia, serif',
-        fontSize: '11px',
-        color: '#5a4a3a'
+        fontSize: '10px',
+        color: '#8b7355',
+        wordWrap: { width: 200 }
       }).setOrigin(0.5);
+      injuryContainer.add(injuryEffect);
+      
+      injuryContainer.setAlpha(0);
+      this.tweens.add({
+        targets: injuryContainer,
+        alpha: 1,
+        y: 170,
+        duration: 300,
+        delay: 700
+      });
     }
   }
 
@@ -101,45 +167,132 @@ export class ResultsScene extends Phaser.Scene {
     const { width } = this.cameras.main;
     const startY = 230;
     
+    // Section header with decorative line
     this.add.text(width / 2, startY, '═══ REWARDS ═══', {
       fontFamily: 'Georgia, serif',
       fontSize: '16px',
       color: '#c9a959'
     }).setOrigin(0.5);
     
-    // Gold
-    const goldText = this.add.text(width / 2, startY + 40, `💰 ${this.resultsData.rewards.gold} Gold`, {
+    // Gold with animated count-up
+    const goldIcon = this.add.text(width / 2 - 70, startY + 45, '💰', {
+      fontSize: '24px'
+    }).setOrigin(0.5).setAlpha(0);
+    
+    const goldAmount = { value: 0 };
+    const goldText = this.add.text(width / 2, startY + 45, '0 Gold', {
       fontFamily: 'Georgia, serif',
-      fontSize: '18px',
+      fontSize: '22px',
       color: '#ffd700'
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setAlpha(0);
     
     // Fame
-    const fameText = this.add.text(width / 2, startY + 70, `⭐ ${this.resultsData.rewards.fame} Fame`, {
+    const fameIcon = this.add.text(width / 2 - 60, startY + 90, '⭐', {
+      fontSize: '20px'
+    }).setOrigin(0.5).setAlpha(0);
+    
+    const fameText = this.add.text(width / 2, startY + 90, `+${this.resultsData.rewards.fame} Fame`, {
+      fontFamily: 'Georgia, serif',
+      fontSize: '18px',
+      color: '#c0c0c0'
+    }).setOrigin(0.5).setAlpha(0);
+    
+    // XP with progress feel
+    const xpIcon = this.add.text(width / 2 - 55, startY + 130, '📈', {
+      fontSize: '18px'
+    }).setOrigin(0.5).setAlpha(0);
+    
+    const xpText = this.add.text(width / 2, startY + 130, `+${this.resultsData.rewards.xp} XP`, {
       fontFamily: 'Georgia, serif',
       fontSize: '16px',
-      color: '#c0c0c0'
-    }).setOrigin(0.5);
-    
-    // XP
-    const xpText = this.add.text(width / 2, startY + 100, `📈 ${this.resultsData.rewards.xp} XP`, {
-      fontFamily: 'Georgia, serif',
-      fontSize: '14px',
       color: '#8b7355'
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setAlpha(0);
     
-    // Animate rewards appearing
-    [goldText, fameText, xpText].forEach((text, i) => {
-      text.setAlpha(0);
-      this.tweens.add({
-        targets: text,
-        alpha: 1,
-        y: text.y - 10,
-        duration: 300,
-        delay: 200 + i * 200,
-        ease: 'Back.out'
-      });
+    // Animate gold icon appearing with bounce
+    this.tweens.add({
+      targets: goldIcon,
+      alpha: 1,
+      scale: { from: 0.5, to: 1 },
+      duration: 300,
+      delay: 200,
+      ease: 'Back.easeOut'
     });
+    
+    // Animate gold text appearing
+    this.tweens.add({
+      targets: goldText,
+      alpha: 1,
+      duration: 200,
+      delay: 200
+    });
+    
+    // Animated gold count-up
+    this.tweens.add({
+      targets: goldAmount,
+      value: this.resultsData.rewards.gold,
+      duration: 800,
+      delay: 200,
+      ease: 'Power1',
+      onUpdate: () => {
+        goldText.setText(`${Math.floor(goldAmount.value)} Gold`);
+      },
+      onComplete: () => {
+        // Flash gold text on completion
+        this.tweens.add({
+          targets: goldText,
+          scale: 1.2,
+          duration: 100,
+          yoyo: true
+        });
+      }
+    });
+    
+    // Animate fame appearing
+    this.tweens.add({
+      targets: [fameIcon, fameText],
+      alpha: 1,
+      y: `-=10`,
+      duration: 300,
+      delay: 600,
+      ease: 'Back.easeOut'
+    });
+    
+    // Animate XP appearing
+    this.tweens.add({
+      targets: [xpIcon, xpText],
+      alpha: 1,
+      y: `-=10`,
+      duration: 300,
+      delay: 800,
+      ease: 'Back.easeOut'
+    });
+    
+    // Add sparkle effect on gold
+    this.time.delayedCall(400, () => {
+      this.createSparkle(width / 2 - 70, startY + 45);
+    });
+  }
+  
+  private createSparkle(x: number, y: number): void {
+    for (let i = 0; i < 5; i++) {
+      const sparkle = this.add.text(x, y, '✨', {
+        fontSize: '12px'
+      }).setOrigin(0.5);
+      
+      const angle = (Math.PI * 2 / 5) * i;
+      const distance = 20 + Math.random() * 15;
+      
+      this.tweens.add({
+        targets: sparkle,
+        x: x + Math.cos(angle) * distance,
+        y: y + Math.sin(angle) * distance,
+        alpha: 0,
+        scale: 0.5,
+        duration: 500,
+        ease: 'Power2',
+        onComplete: () => sparkle.destroy()
+      });
+    }
   }
 
   private checkLeagueAdvancement(): void {
