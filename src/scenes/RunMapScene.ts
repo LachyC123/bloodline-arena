@@ -15,6 +15,8 @@ import {
   getNodeById 
 } from '../data/runMap';
 import { Button, setInputDebug } from '../ui/Button';
+import { startPrepareScene, startCombat } from '../systems/CombatEntry';
+import { logSceneTransition } from '../systems/ErrorOverlay';
 
 export class RunMapScene extends Phaser.Scene {
   private runMap!: RunMap;
@@ -417,6 +419,8 @@ export class RunMapScene extends Phaser.Scene {
   }
   
   private travelToNode(node: MapNode): void {
+    logSceneTransition('RunMapScene', node.type, { nodeId: node.id, nodeType: node.type });
+    
     if (this.debugMode) {
       console.log('[RunMap] Traveling to node:', node.id, node.type);
     }
@@ -426,36 +430,72 @@ export class RunMapScene extends Phaser.Scene {
     SaveSystem.updateRun({ runMap: this.runMap as any });
     
     // Route to appropriate scene based on node type
+    switch (node.type) {
+      case 'fight':
+      case 'elite':
+        // Use hardened combat entry
+        startPrepareScene(this, { 
+          nodeId: node.id, 
+          nodeType: node.type,
+          isElite: node.type === 'elite'
+        });
+        break;
+      case 'champion':
+        startPrepareScene(this, { 
+          nodeId: node.id, 
+          nodeType: 'champion',
+          isChampion: true 
+        });
+        break;
+      case 'rival':
+        startPrepareScene(this, { 
+          nodeId: node.id, 
+          nodeType: 'rival'
+        });
+        break;
+      case 'shop':
+        this.safeTransition('ShopScene');
+        break;
+      case 'forge':
+        this.safeTransition('ForgeScene');
+        break;
+      case 'clinic':
+        this.safeTransition('CampScene');
+        break;
+      case 'event':
+        this.safeTransition('VignetteScene');
+        break;
+      case 'camp':
+        this.safeTransition('CampScene');
+        break;
+      default:
+        this.safeTransition('CampScene');
+    }
+  }
+  
+  /**
+   * Safe scene transition with timeout fallback
+   */
+  private safeTransition(sceneName: string): void {
+    logSceneTransition('RunMapScene', sceneName);
+    
     this.cameras.main.fadeOut(300);
+    
+    let transitioned = false;
+    
     this.cameras.main.once('camerafadeoutcomplete', () => {
-      switch (node.type) {
-        case 'fight':
-        case 'elite':
-          this.scene.start('PrepareScene', { nodeType: node.type });
-          break;
-        case 'champion':
-          this.scene.start('PrepareScene', { nodeType: 'champion' });
-          break;
-        case 'rival':
-          this.scene.start('PrepareScene', { nodeType: 'rival' });
-          break;
-        case 'shop':
-          this.scene.start('ShopScene');
-          break;
-        case 'forge':
-          this.scene.start('ForgeScene');
-          break;
-        case 'clinic':
-          this.scene.start('CampScene');
-          break;
-        case 'event':
-          this.scene.start('VignetteScene');
-          break;
-        case 'camp':
-          this.scene.start('CampScene');
-          break;
-        default:
-          this.scene.start('CampScene');
+      if (!transitioned) {
+        transitioned = true;
+        this.scene.start(sceneName);
+      }
+    });
+    
+    // Failsafe: if fade doesn't complete in 2s, force transition
+    this.time.delayedCall(2000, () => {
+      if (!transitioned && this.scene.isActive('RunMapScene')) {
+        console.warn('[RunMap] Fade timeout, forcing transition to', sceneName);
+        transitioned = true;
+        this.scene.start(sceneName);
       }
     });
   }
@@ -472,28 +512,53 @@ export class RunMapScene extends Phaser.Scene {
     }, { width: 140, height: 45 });
     campBtn.setDepth(200); // Above everything
     
-    // Dev-only: Quick test button
+    // Dev-only: Quick test buttons
     if (this.debugMode) {
-      const testBtn = new Button(this, width - 70, height - 40, 'TEST', () => {
+      // Test combat directly
+      const testCombatBtn = new Button(this, 50, height - 40, '⚔️', () => {
         this.testNavigation();
-      }, { width: 80, height: 35, fontSize: 12 });
-      testBtn.setDepth(200);
+      }, { width: 50, height: 35, fontSize: 14 });
+      testCombatBtn.setDepth(200);
+      
+      // Test prepare flow
+      const testPrepBtn = new Button(this, width - 50, height - 40, '🛡️', () => {
+        this.testPrepare();
+      }, { width: 50, height: 35, fontSize: 14 });
+      testPrepBtn.setDepth(200);
     }
   }
   
   private testNavigation(): void {
+    console.log('[RunMap] TEST: Starting direct combat test');
+    
+    // Try to start combat directly (bypassing node selection)
+    const success = startCombat(this, {
+      nodeType: 'fight',
+      isElite: false,
+      isChampion: false
+    });
+    
+    if (!success) {
+      console.error('[RunMap] TEST: Combat start failed - check error overlay');
+    }
+  }
+  
+  private testPrepare(): void {
+    console.log('[RunMap] TEST: Starting PrepareScene test');
+    
     // Find first accessible fight node
     const accessible = getAccessibleNodes(this.runMap);
     const fightNode = accessible.find(n => n.type === 'fight' || n.type === 'elite');
     
     if (fightNode) {
-      console.log('[RunMap] Test: Navigating to fight node:', fightNode.id);
+      console.log('[RunMap] TEST: Found fight node:', fightNode.id);
       this.travelToNode(fightNode);
     } else if (accessible.length > 0) {
-      console.log('[RunMap] Test: Navigating to first accessible node:', accessible[0].id);
+      console.log('[RunMap] TEST: Navigating to first accessible node:', accessible[0].id);
       this.travelToNode(accessible[0]);
     } else {
-      console.log('[RunMap] Test: No accessible nodes!');
+      console.log('[RunMap] TEST: No accessible nodes! Creating test fight...');
+      startPrepareScene(this, { nodeType: 'fight' });
     }
   }
   

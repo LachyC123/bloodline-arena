@@ -4,6 +4,7 @@
  */
 
 import Phaser from 'phaser';
+import { errorOverlay } from './systems/ErrorOverlay';
 import { BootScene } from './scenes/BootScene';
 import { PreloadScene } from './scenes/PreloadScene';
 import { MainMenuScene } from './scenes/MainMenuScene';
@@ -144,3 +145,25 @@ if (import.meta.env?.DEV) {
   console.log('Bloodline Arena - Development Mode');
   console.log('Game Config:', config);
 }
+
+// Error overlay is automatically initialized on import
+console.log('[Main] Error overlay initialized');
+
+// Add global scene transition logging
+game.events.on('prestep', () => {
+  // Scene manager events for debugging
+});
+
+// Log scene changes
+const originalStart = Phaser.Scenes.ScenePlugin.prototype.start;
+Phaser.Scenes.ScenePlugin.prototype.start = function(key: string, data?: object) {
+  const currentKey = this.scene?.scene?.key || 'unknown';
+  console.log(`[Scene] Transition: ${currentKey} → ${key}`, data || '');
+  return originalStart.call(this, key, data);
+};
+
+// Catch Phaser loader errors globally
+game.events.on('loaderror', (file: Phaser.Loader.File) => {
+  const url = typeof file.src === 'string' ? file.src : String(file.src ?? file.url ?? 'unknown');
+  errorOverlay.addLoaderError(file.key, url);
+});
