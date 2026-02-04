@@ -41,23 +41,37 @@ export class MainMenuScene extends Phaser.Scene {
   private createBackground(): void {
     const { width, height } = this.cameras.main;
     
-    // Dark gradient background
+    // Dark gradient background with depth
     const bg = this.add.graphics();
-    bg.fillGradientStyle(0x1a1410, 0x1a1410, 0x2a1f1a, 0x2a1f1a);
+    bg.fillGradientStyle(0x120d0a, 0x1c1410, 0x2c2018, 0x1a1410);
     bg.fillRect(0, 0, width, height);
+
+    // Subtle radial glow
+    const glow = this.add.graphics();
+    glow.fillStyle(0xffd37a, 0.12);
+    glow.fillCircle(width * 0.5, height * 0.3, width * 0.35);
+    glow.fillStyle(0x7a4b1d, 0.18);
+    glow.fillCircle(width * 0.5, height * 0.35, width * 0.2);
     
     // Add parchment texture overlay
     if (this.textures.exists('parchment_overlay')) {
       const overlay = this.add.image(width / 2, height / 2, 'parchment_overlay');
-      overlay.setAlpha(0.1);
+      overlay.setAlpha(0.12);
       overlay.setDisplaySize(width, height);
     }
+
+    // Decorative frame
+    const frame = this.add.graphics();
+    frame.lineStyle(3, 0x7a5b2e, 0.7);
+    frame.strokeRoundedRect(16, 18, width - 32, height - 36, 16);
+    frame.lineStyle(1, 0x2a1f1a, 0.9);
+    frame.strokeRoundedRect(22, 26, width - 44, height - 52, 14);
     
     // Add vignette
     if (this.textures.exists('vignette')) {
       const vignette = this.add.image(width / 2, height / 2, 'vignette');
       vignette.setDisplaySize(width, height);
-      vignette.setAlpha(0.5);
+      vignette.setAlpha(0.6);
     }
   }
 
@@ -66,37 +80,62 @@ export class MainMenuScene extends Phaser.Scene {
     const centerX = width / 2;
     
     // Main title
-    const title = this.add.text(centerX, 120, 'BLOODLINE', {
+    const title = this.add.text(centerX, 110, 'BLOODLINE', {
       fontFamily: 'Georgia, serif',
-      fontSize: '48px',
-      color: '#c9a959',
+      fontSize: '52px',
+      color: '#f1d28a',
       stroke: '#000000',
-      strokeThickness: 6
+      strokeThickness: 7
     }).setOrigin(0.5);
     
-    const subtitle = this.add.text(centerX, 175, 'ARENA', {
+    const subtitle = this.add.text(centerX, 170, 'ARENA', {
       fontFamily: 'Georgia, serif',
-      fontSize: '36px',
-      color: '#8b7355',
+      fontSize: '38px',
+      color: '#b98b4a',
       stroke: '#000000',
       strokeThickness: 4,
       letterSpacing: 8
     }).setOrigin(0.5);
+
+    const crest = this.add.text(centerX, 60, '⚔️', {
+      fontSize: '32px'
+    }).setOrigin(0.5);
+    this.tweens.add({
+      targets: crest,
+      y: 64,
+      duration: 1200,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
     
     // Decorative line
     const line = this.add.graphics();
-    line.lineStyle(2, 0xc9a959, 0.5);
-    line.moveTo(centerX - 100, 210);
-    line.lineTo(centerX + 100, 210);
+    line.lineStyle(2, 0xc9a959, 0.6);
+    line.moveTo(centerX - 140, 210);
+    line.lineTo(centerX + 140, 210);
+    line.strokePath();
+    line.lineStyle(1, 0x5a3f1f, 0.6);
+    line.moveTo(centerX - 120, 216);
+    line.lineTo(centerX + 120, 216);
     line.strokePath();
     
     // Tagline
-    this.add.text(centerX, 235, 'Blood. Honor. Legacy.', {
+    this.add.text(centerX, 238, 'Blood. Honor. Legacy.', {
       fontFamily: 'Georgia, serif',
-      fontSize: '14px',
-      color: '#5a4a3a',
+      fontSize: '15px',
+      color: '#7a5a35',
       fontStyle: 'italic'
     }).setOrigin(0.5);
+
+    this.tweens.add({
+      targets: [title, subtitle],
+      y: '+=2',
+      duration: 1500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
   }
 
   private createMenu(): void {

@@ -4,6 +4,7 @@
  */
 
 import { ItemRarity } from './WeaponsData';
+import { SeededRNG } from '../systems/RNGSystem';
 
 export type ArmorSlot = 'body' | 'helmet' | 'shield';
 
@@ -41,6 +42,183 @@ export interface ArmorData {
   price: number;
   sellPrice: number;
   leagueMin: 'bronze' | 'silver' | 'gold';
+}
+
+export const PROCEDURAL_ARMOR_PREFIX = 'proc_armor';
+
+export function createProceduralArmorId(
+  seed: number,
+  league: 'bronze' | 'silver' | 'gold',
+  rarity: ItemRarity,
+  slot: ArmorSlot
+): string {
+  return `${PROCEDURAL_ARMOR_PREFIX}_${seed}_${league}_${rarity}_${slot}`;
+}
+
+const PROCEDURAL_ARMOR_ADJECTIVES = [
+  'Stalwart',
+  'Battleworn',
+  'Reinforced',
+  'Gilded',
+  'Scarred',
+  'Runed',
+  'Warden\'s',
+  'Ashen',
+  'Cinderforged',
+  'Dreadguard',
+  'Oathbound',
+  'Stormlinked',
+  'Bloodforged'
+];
+
+const PROCEDURAL_ARMOR_MATERIALS = [
+  'Leather',
+  'Iron',
+  'Steel',
+  'Bronze',
+  'Obsidian',
+  'Dragonhide',
+  'Moonsteel',
+  'Sunplate'
+];
+
+const PROCEDURAL_ARMOR_SUFFIXES = [
+  'of the Ramparts',
+  'of the Pit',
+  'of Resolve',
+  'of the Bloodline',
+  'of the Watch',
+  'of Silent Steps',
+  'of the Wastes'
+];
+
+function parseProceduralArmorId(id: string): { seed: number; league: 'bronze' | 'silver' | 'gold'; rarity: ItemRarity; slot: ArmorSlot } | null {
+  if (!id.startsWith(`${PROCEDURAL_ARMOR_PREFIX}_`)) return null;
+  const parts = id.split('_');
+  if (parts.length < 6) return null;
+  const seed = Number(parts[2]);
+  const league = parts[3] as 'bronze' | 'silver' | 'gold';
+  const rarity = parts[4] as ItemRarity;
+  const slot = parts[5] as ArmorSlot;
+  if (!Number.isFinite(seed)) return null;
+  return { seed, league, rarity, slot };
+}
+
+function getArmorRarityTier(rarity: ItemRarity): number {
+  switch (rarity) {
+    case 'common':
+      return 1;
+    case 'uncommon':
+      return 2;
+    case 'rare':
+      return 3;
+    case 'epic':
+      return 4;
+    case 'legendary':
+      return 5;
+  }
+}
+
+function getArmorLeagueMultiplier(league: 'bronze' | 'silver' | 'gold'): number {
+  switch (league) {
+    case 'silver':
+      return 1.15;
+    case 'gold':
+      return 1.3;
+    default:
+      return 1;
+  }
+}
+
+function buildProceduralArmor(id: string): ArmorData | undefined {
+  const parsed = parseProceduralArmorId(id);
+  if (!parsed) return undefined;
+  const { seed, league, rarity } = parsed;
+  const resolvedSlot: ArmorSlot = ARMOR_SLOT_INFO[parsed.slot] ? parsed.slot : 'body';
+  const rng = new SeededRNG(seed);
+  const tier = getArmorRarityTier(rarity);
+  const multiplier = getArmorLeagueMultiplier(league);
+  const adjective = rng.pick(PROCEDURAL_ARMOR_ADJECTIVES);
+  const material = rng.pick(PROCEDURAL_ARMOR_MATERIALS);
+  const suffix = rng.pick(PROCEDURAL_ARMOR_SUFFIXES);
+  const name = `${adjective} ${material} ${ARMOR_SLOT_INFO[resolvedSlot].name} ${suffix}`;
+
+  const baseDefense = Math.round((3 + tier * 2 + rng.randomInt(0, 3 + tier)) * multiplier);
+  const staminaRegenMod = rng.randomInt(-2, 2);
+  const dodgeMod = resolvedSlot === 'helmet' ? rng.randomInt(-2, 4) : rng.randomInt(-3, 5);
+  const speedMod = rng.randomInt(-2, 2);
+
+  const perks: ArmorPerk[] = [];
+  const perkPool: ArmorPerk[] = [
+    { type: 'bleed_resist', value: rng.randomInt(10, 20 + tier * 5), description: '' },
+    { type: 'stun_resist', value: rng.randomInt(10, 20 + tier * 5), description: '' },
+    { type: 'crit_resist', value: rng.randomInt(10, 20 + tier * 4), description: '' },
+    { type: 'poison_resist', value: rng.randomInt(10, 20 + tier * 5), description: '' },
+    { type: 'stamina_regen', value: rng.randomInt(1, 2 + tier), description: '' },
+    { type: 'focus_boost', value: rng.randomInt(1, 2 + tier), description: '' },
+    { type: 'momentum_boost', value: rng.randomInt(5, 10 + tier * 5), description: '' },
+    { type: 'first_strike_resist', value: rng.randomInt(10, 20 + tier * 5), description: '' },
+    { type: 'counter_damage', value: rng.randomInt(10, 20 + tier * 5), description: '' },
+    { type: 'thorns', value: rng.randomInt(2, 4 + tier * 2), description: '' },
+    { type: 'hp_regen', value: rng.randomInt(1, 2 + tier), description: '' },
+    { type: 'dodge_boost', value: rng.randomInt(2, 4 + tier * 2), description: '' }
+  ];
+
+  const perkCount = tier >= 5 ? 3 : tier >= 4 ? 2 : tier >= 3 ? 1 : 0;
+  if (perkCount > 0) {
+    rng.pickMultiple(perkPool, perkCount).forEach(perk => {
+      const description = (() => {
+        switch (perk.type) {
+          case 'bleed_resist':
+            return `${perk.value}% bleed resistance`;
+          case 'stun_resist':
+            return `${perk.value}% stun resistance`;
+          case 'crit_resist':
+            return `${perk.value}% crit resistance`;
+          case 'poison_resist':
+            return `${perk.value}% poison resistance`;
+          case 'stamina_regen':
+            return `+${perk.value} stamina regen`;
+          case 'focus_boost':
+            return `+${perk.value} focus on hit`;
+          case 'momentum_boost':
+            return `+${perk.value}% momentum gain`;
+          case 'first_strike_resist':
+            return `${perk.value}% first strike resist`;
+          case 'counter_damage':
+            return `+${perk.value}% counter damage`;
+          case 'thorns':
+            return `Deal ${perk.value} damage on hit`;
+          case 'hp_regen':
+            return `+${perk.value} HP per turn`;
+          case 'dodge_boost':
+            return `+${perk.value}% dodge`;
+        }
+      })();
+      perks.push({ ...perk, description });
+    });
+  }
+
+  const price = Math.round(baseDefense * 18 + tier * 45);
+  const sellPrice = Math.round(price * 0.35);
+
+  return {
+    id,
+    name,
+    slot: resolvedSlot,
+    rarity,
+    icon: ARMOR_SLOT_INFO[resolvedSlot].icon,
+    defense: baseDefense,
+    staminaRegenMod,
+    dodgeMod,
+    speedMod,
+    perks,
+    description: `Forged for the ${league} arenas with ${material.toLowerCase()} heft.`,
+    lore: `A ${adjective.toLowerCase()} piece prized by veteran champions.`,
+    price,
+    sellPrice,
+    leagueMin: league
+  };
 }
 
 // Armor type descriptions
@@ -536,6 +714,9 @@ export const ARMOR_DATA: ArmorData[] = [
 
 // Helper functions
 export function getArmorById(id: string): ArmorData | undefined {
+  if (id.startsWith(`${PROCEDURAL_ARMOR_PREFIX}_`)) {
+    return buildProceduralArmor(id);
+  }
   return ARMOR_DATA.find(a => a.id === id);
 }
 

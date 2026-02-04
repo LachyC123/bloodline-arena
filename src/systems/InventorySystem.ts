@@ -3,9 +3,10 @@
  * Handles item instances, equipment, consumables, and stat calculations
  */
 
-import { WeaponData, ItemRarity, getWeaponById, WEAPONS_DATA } from '../data/WeaponsData';
-import { ArmorData, ArmorSlot, getArmorById, ARMOR_DATA } from '../data/ArmorData';
+import { WeaponData, ItemRarity, getWeaponById, WEAPONS_DATA, WEAPON_TYPE_INFO, WeaponType, createProceduralWeaponId } from '../data/WeaponsData';
+import { ArmorData, ArmorSlot, getArmorById, ARMOR_DATA, ARMOR_SLOT_INFO, createProceduralArmorId } from '../data/ArmorData';
 import { rollAffixes, getAffixedItemName, calculateAffixStats, AffixedItemInstance, AffixedStats } from './AffixSystem';
+import { RNG } from './RNGSystem';
 
 // ========== ITEM TYPES ==========
 
@@ -365,6 +366,28 @@ export const CONSUMABLES_DATA: ConsumableData[] = [
   }
 ];
 
+const RARITY_WEIGHTS: Record<ItemRarity, number> = {
+  common: 50,
+  uncommon: 30,
+  rare: 15,
+  epic: 4,
+  legendary: 1
+};
+
+function rollRarityForLeague(league: 'bronze' | 'silver' | 'gold'): ItemRarity {
+  const weights = { ...RARITY_WEIGHTS };
+  if (league === 'silver') {
+    weights.rare += 5;
+    weights.epic += 2;
+  } else if (league === 'gold') {
+    weights.rare += 10;
+    weights.epic += 5;
+    weights.legendary += 2;
+  }
+  const options: [ItemRarity, number][] = Object.entries(weights) as [ItemRarity, number][];
+  return RNG.weightedPick(options);
+}
+
 // ========== HELPER FUNCTIONS ==========
 
 export function getTrinketById(id: string): TrinketData | undefined {
@@ -714,37 +737,22 @@ export const RARITY_NAMES: Record<ItemRarity, string> = {
 // ========== ITEM GENERATION FOR DROPS/SHOP ==========
 
 export function generateRandomWeapon(league: 'bronze' | 'silver' | 'gold', withAffixes: boolean = true): ItemInstance {
+  const proceduralChance = league === 'gold' ? 0.6 : league === 'silver' ? 0.45 : 0.3;
+  if (RNG.chance(proceduralChance)) {
+    return generateProceduralWeapon(league, withAffixes);
+  }
+
   const leagueOrder = ['bronze', 'silver', 'gold'];
   const leagueIdx = leagueOrder.indexOf(league);
-  
+
   const available = WEAPONS_DATA.filter(w => leagueOrder.indexOf(w.leagueMin) <= leagueIdx);
-  
-  // Weight by rarity (common more likely)
-  const rarityWeights: Record<ItemRarity, number> = {
-    common: 50,
-    uncommon: 30,
-    rare: 15,
-    epic: 4,
-    legendary: 1
-  };
-  
-  // Increase rare chances in higher leagues
-  if (league === 'silver') {
-    rarityWeights.rare += 5;
-    rarityWeights.epic += 2;
-  } else if (league === 'gold') {
-    rarityWeights.rare += 10;
-    rarityWeights.epic += 5;
-    rarityWeights.legendary += 1;
-  }
-  
   const weighted = available.map(w => ({
     weapon: w,
-    weight: rarityWeights[w.rarity]
+    weight: RARITY_WEIGHTS[w.rarity]
   }));
   
   const totalWeight = weighted.reduce((sum, w) => sum + w.weight, 0);
-  let roll = Math.random() * totalWeight;
+  let roll = RNG.float(0, totalWeight);
   
   for (const { weapon, weight } of weighted) {
     roll -= weight;
@@ -764,6 +772,11 @@ export function generateRandomWeapon(league: 'bronze' | 'silver' | 'gold', withA
 }
 
 export function generateRandomArmor(league: 'bronze' | 'silver' | 'gold', slot?: ArmorSlot, withAffixes: boolean = true): ItemInstance {
+  const proceduralChance = league === 'gold' ? 0.6 : league === 'silver' ? 0.45 : 0.3;
+  if (RNG.chance(proceduralChance)) {
+    return generateProceduralArmor(league, slot, withAffixes);
+  }
+
   const leagueOrder = ['bronze', 'silver', 'gold'];
   const leagueIdx = leagueOrder.indexOf(league);
   
@@ -772,30 +785,13 @@ export function generateRandomArmor(league: 'bronze' | 'silver' | 'gold', slot?:
     available = available.filter(a => a.slot === slot);
   }
   
-  const rarityWeights: Record<ItemRarity, number> = {
-    common: 50,
-    uncommon: 30,
-    rare: 15,
-    epic: 4,
-    legendary: 1
-  };
-  
-  if (league === 'silver') {
-    rarityWeights.rare += 5;
-    rarityWeights.epic += 2;
-  } else if (league === 'gold') {
-    rarityWeights.rare += 10;
-    rarityWeights.epic += 5;
-    rarityWeights.legendary += 1;
-  }
-  
   const weighted = available.map(a => ({
     armor: a,
-    weight: rarityWeights[a.rarity]
+    weight: RARITY_WEIGHTS[a.rarity]
   }));
   
   const totalWeight = weighted.reduce((sum, a) => sum + a.weight, 0);
-  let roll = Math.random() * totalWeight;
+  let roll = RNG.float(0, totalWeight);
   
   for (const { armor, weight } of weighted) {
     roll -= weight;
@@ -812,4 +808,44 @@ export function generateRandomArmor(league: 'bronze' | 'silver' | 'gold', slot?:
     return createAffixedItemInstance(first.id, 'armor', first.rarity, league, first.slot);
   }
   return createItemInstance(first.id, 'armor', first.slot);
+}
+
+export function generateProceduralWeapon(league: 'bronze' | 'silver' | 'gold', withAffixes: boolean = true): ItemInstance {
+  const rarity = rollRarityForLeague(league);
+  const type = RNG.pick(Object.keys(WEAPON_TYPE_INFO) as WeaponType[]);
+  const seed = RNG.int(100000, 999999);
+  const id = createProceduralWeaponId(seed, league, rarity, type);
+  if (withAffixes) {
+    return createAffixedItemInstance(id, 'weapon', rarity, league);
+  }
+  return createItemInstance(id, 'weapon');
+}
+
+export function generateProceduralArmor(league: 'bronze' | 'silver' | 'gold', slot?: ArmorSlot, withAffixes: boolean = true): ItemInstance {
+  const rarity = rollRarityForLeague(league);
+  const resolvedSlot = slot ?? RNG.pick(Object.keys(ARMOR_SLOT_INFO) as ArmorSlot[]);
+  const seed = RNG.int(100000, 999999);
+  const id = createProceduralArmorId(seed, league, rarity, resolvedSlot);
+  if (withAffixes) {
+    return createAffixedItemInstance(id, 'armor', rarity, league, resolvedSlot);
+  }
+  return createItemInstance(id, 'armor', resolvedSlot);
+}
+
+export function generateRandomTrinket(league: 'bronze' | 'silver' | 'gold'): ItemInstance {
+  const leagueOrder = ['bronze', 'silver', 'gold'];
+  const leagueIdx = leagueOrder.indexOf(league);
+  const available = TRINKETS_DATA.filter(t => leagueOrder.indexOf(t.leagueMin) <= leagueIdx);
+  const weighted = available.map(t => [t, RARITY_WEIGHTS[t.rarity]] as [TrinketData, number]);
+  const picked = RNG.weightedPick(weighted);
+  return createItemInstance(picked.id, 'trinket');
+}
+
+export function generateRandomConsumable(league: 'bronze' | 'silver' | 'gold'): ItemInstance {
+  const leagueOrder = ['bronze', 'silver', 'gold'];
+  const leagueIdx = leagueOrder.indexOf(league);
+  const available = CONSUMABLES_DATA.filter(c => leagueOrder.indexOf(c.leagueMin) <= leagueIdx);
+  const weighted = available.map(c => [c, RARITY_WEIGHTS[c.rarity]] as [ConsumableData, number]);
+  const picked = RNG.weightedPick(weighted);
+  return createItemInstance(picked.id, 'consumable', undefined, 1);
 }

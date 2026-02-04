@@ -61,6 +61,9 @@ export interface CombatantState {
   guardStance: TargetZone | null;
   lastAction: CombatAction | null;
   consecutiveGuards: number;
+  momentumStacks: number; // 0-5, increases accuracy and damage
+  posture: number; // guard stability
+  maxPosture: number;
 }
 
 export interface CombatLogEntry {
@@ -140,6 +143,7 @@ export function initCombat(player: Fighter, enemy: Fighter): CombatState {
 }
 
 function createCombatantState(fighter: Fighter): CombatantState {
+  const maxPosture = Math.round(20 + fighter.currentStats.defense * 2 + fighter.currentStats.maxStamina * 0.1);
   return {
     fighter,
     currentHP: fighter.currentStats.currentHP,
@@ -149,7 +153,10 @@ function createCombatantState(fighter: Fighter): CombatantState {
     activeEffects: new Map(),
     guardStance: null,
     lastAction: null,
-    consecutiveGuards: 0
+    consecutiveGuards: 0,
+    momentumStacks: 0,
+    posture: maxPosture,
+    maxPosture
   };
 }
 
@@ -182,6 +189,18 @@ export function executeAction(
     hypeGained: 0,
     message: ''
   };
+
+  // Stun skips action
+  if (attacker.activeEffects.has('stun')) {
+    const turns = attacker.activeEffects.get('stun') ?? 1;
+    if (turns <= 1) {
+      attacker.activeEffects.delete('stun');
+    } else {
+      attacker.activeEffects.set('stun', turns - 1);
+    }
+    result.message = `${attacker.fighter.firstName} is stunned and loses the turn!`;
+    return result;
+  }
   
   // Check stamina
   if (attacker.currentStamina < config.staminaCost) {
@@ -282,6 +301,17 @@ function executeAttack(
   if (attacker.activeEffects.has('concuss')) hitChance -= 0.15;
   if (defender.activeEffects.has('cripple') && targetZone === 'legs') hitChance += 0.1;
   
+  // Momentum bonuses
+  hitChance += attacker.momentumStacks * 0.02;
+  
+  // Tactical follow-up bonuses
+  if (attacker.lastAction === 'guard' && action === 'light_attack') {
+    hitChance += 0.1;
+  }
+  if (attacker.lastAction === 'dodge' && action === 'heavy_attack') {
+    hitChance += 0.05;
+  }
+  
   // Roll to hit
   if (RNG.chance(hitChance)) {
     result.success = true;
@@ -289,13 +319,21 @@ function executeAttack(
     // Calculate damage
     let baseDamage = attacker.fighter.currentStats.attack * config.baseDamage;
     baseDamage *= zoneModifier.damage;
+    baseDamage *= 1 + attacker.momentumStacks * 0.02;
     
     // Check for crit
-    const critChance = (attacker.fighter.currentStats.critChance / 100) + zoneModifier.critBonus;
+    const critChance = (attacker.fighter.currentStats.critChance / 100) + zoneModifier.critBonus + attacker.momentumStacks * 0.01;
+    const dodgeCounterBonus = attacker.lastAction === 'dodge' && action === 'heavy_attack' ? 0.1 : 0;
+    const guardRiposteBonus = attacker.lastAction === 'guard' && action === 'light_attack' ? 0.05 : 0;
     if (RNG.chance(critChance)) {
       result.critical = true;
       baseDamage *= attacker.fighter.currentStats.critDamage / 100;
       result.hypeGained += 10;
+    }
+    if (!result.critical && RNG.chance(dodgeCounterBonus + guardRiposteBonus)) {
+      result.critical = true;
+      baseDamage *= attacker.fighter.currentStats.critDamage / 100;
+      result.hypeGained += 8;
     }
     
     // Check for guard
@@ -305,6 +343,15 @@ function executeAttack(
       
       // Perfect parry check (handled separately via timing)
       result.message = `${defender.fighter.firstName} blocked! `;
+      
+      const postureDamage = (action === 'heavy_attack' ? 0.8 : 0.4) * baseDamage;
+      defender.posture = Math.max(0, defender.posture - Math.round(postureDamage));
+      if (defender.posture === 0) {
+        defender.activeEffects.set('stun', 2);
+        result.message += 'Guard broken! ';
+        result.hypeGained += 10;
+        defender.posture = Math.round(defender.maxPosture * 0.6);
+      }
     }
     
     // Apply defense
@@ -329,8 +376,15 @@ function executeAttack(
       defender.activeEffects.set(zoneModifier.effect, 3);
     }
     
+    // Zone-specific tactical effects
+    if (targetZone === 'legs') {
+      const staminaShred = Math.min(defender.currentStamina, 5 + Math.floor(attacker.fighter.currentStats.attack * 0.1));
+      defender.currentStamina -= staminaShred;
+      result.message += ` ${defender.fighter.firstName}'s footing falters!`;
+    }
+
     // Focus gain
-    result.focusGained = config.focusGain;
+    result.focusGained = config.focusGain + (targetZone === 'head' ? 5 : 0);
     attacker.currentFocus = Math.min(
       attacker.fighter.currentStats.maxFocus,
       attacker.currentFocus + result.focusGained
@@ -339,6 +393,10 @@ function executeAttack(
     // Hype gain
     result.hypeGained += config.hypeGain;
     
+    // Momentum tracking
+    attacker.momentumStacks = Math.min(5, attacker.momentumStacks + 1);
+    defender.momentumStacks = Math.max(0, defender.momentumStacks - 1);
+
     // Build message
     const attackName = action === 'light_attack' ? 'quick strike' : 'heavy blow';
     result.message += `${attacker.fighter.firstName}'s ${attackName} hits the ${targetZone} for ${finalDamage} damage!`;
@@ -351,6 +409,7 @@ function executeAttack(
       result.message = `${defender.fighter.firstName} dodges the attack!`;
       result.hypeGained = 5;
     }
+    attacker.momentumStacks = Math.max(0, attacker.momentumStacks - 1);
   }
   
   return result;
@@ -359,6 +418,7 @@ function executeAttack(
 function executeGuard(attacker: CombatantState, targetZone: TargetZone): ActionResult {
   attacker.guardStance = targetZone;
   attacker.consecutiveGuards++;
+  attacker.momentumStacks = Math.max(0, attacker.momentumStacks - 1);
   
   const focusGain = ACTION_CONFIG.guard.focusGain * Math.min(attacker.consecutiveGuards, 3);
   attacker.currentFocus = Math.min(
@@ -386,6 +446,7 @@ function executeGuard(attacker: CombatantState, targetZone: TargetZone): ActionR
 function executeDodge(attacker: CombatantState): ActionResult {
   attacker.guardStance = null;
   attacker.consecutiveGuards = 0;
+  attacker.momentumStacks = Math.max(0, attacker.momentumStacks - 1);
   
   return {
     success: true,
@@ -435,12 +496,15 @@ function executeSpecial(
   attacker.fighter.signatureMoveUses++;
   
   // Special attacks always hit with high damage
-  const baseDamage = attacker.fighter.currentStats.attack * config.baseDamage;
+  const baseDamage = attacker.fighter.currentStats.attack * config.baseDamage * (1 + attacker.momentumStacks * 0.03);
   const finalDamage = Math.round(baseDamage * RNG.float(0.9, 1.2));
   
   defender.currentHP -= finalDamage;
   defender.injuryMeter += finalDamage * 0.7;
   
+  attacker.momentumStacks = Math.min(5, attacker.momentumStacks + 2);
+  defender.momentumStacks = Math.max(0, defender.momentumStacks - 2);
+
   return {
     success: true,
     damage: finalDamage,
@@ -465,6 +529,7 @@ function executeItem(attacker: CombatantState, itemId?: string): ActionResult {
     attacker.fighter.currentStats.maxHP,
     attacker.currentHP + healAmount
   );
+  attacker.momentumStacks = 0;
   
   return {
     success: true,
@@ -539,9 +604,16 @@ export function processTurnEnd(state: CombatState): void {
     const combatant = state[role];
     
     // Regenerate stamina
+    const staminaRegenBonus = combatant.activeEffects.has('stun') ? 4 : 10;
     combatant.currentStamina = Math.min(
       combatant.fighter.currentStats.maxStamina,
-      combatant.currentStamina + 10
+      combatant.currentStamina + staminaRegenBonus
+    );
+
+    // Regenerate posture
+    combatant.posture = Math.min(
+      combatant.maxPosture,
+      combatant.posture + (combatant.lastAction === 'guard' ? 4 : 6)
     );
     
     // Process status effects
@@ -571,6 +643,36 @@ export function processTurnEnd(state: CombatState): void {
           timestamp: Date.now()
         });
       }
+
+      if (effect === 'poison') {
+        combatant.currentHP -= 3;
+        combatant.currentStamina = Math.max(0, combatant.currentStamina - 4);
+        state.log.push({
+          round: state.round,
+          actor: role,
+          action: 'light_attack',
+          result: {
+            success: true,
+            damage: 3,
+            damageBlocked: 0,
+            targetZone: 'body',
+            critical: false,
+            perfectParry: false,
+            counterDamage: 0,
+            statusApplied: null,
+            staminaCost: 0,
+            focusGained: 0,
+            focusSpent: 0,
+            hypeGained: 0,
+            message: `${combatant.fighter.firstName} suffers poison damage!`
+          },
+          timestamp: Date.now()
+        });
+      }
+
+      if (effect === 'cripple') {
+        combatant.currentStamina = Math.max(0, combatant.currentStamina - 2);
+      }
       
       // Decrement turn counter
       if (turns <= 1) {
@@ -578,6 +680,10 @@ export function processTurnEnd(state: CombatState): void {
       } else {
         combatant.activeEffects.set(effect, turns - 1);
       }
+    }
+
+    if (combatant.lastAction === 'guard' || combatant.lastAction === 'dodge') {
+      combatant.momentumStacks = Math.max(0, combatant.momentumStacks - 1);
     }
     
     // Reset guard if not guarding
