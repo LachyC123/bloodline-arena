@@ -1317,7 +1317,8 @@ export class FightScene extends Phaser.Scene {
           won: true, 
           rewards,
           injury,
-          enemy: this.enemy
+          enemy: this.enemy,
+          crowdHype: this.combatState.crowdHype
         });
       });
     } else {

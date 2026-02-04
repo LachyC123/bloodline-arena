@@ -6,16 +6,20 @@ import Phaser from 'phaser';
 import { SaveSystem } from '../systems/SaveSystem';
 import { Fighter, addTrust, Injury } from '../systems/FighterSystem';
 import { UIHelper } from '../ui/UIHelper';
+import { ItemInstance, getItemName, getItemIcon, getItemRarity, RARITY_COLORS } from '../systems/InventorySystem';
+import { generateLootDrops } from '../systems/LootSystem';
 
 interface ResultsData {
   won: boolean;
   rewards: { gold: number; fame: number; xp: number };
   injury: Injury | null;
   enemy: Fighter;
+  crowdHype?: number;
 }
 
 export class ResultsScene extends Phaser.Scene {
   private resultsData!: ResultsData;
+  private lootDrops: ItemInstance[] = [];
   
   constructor() {
     super({ key: 'ResultsScene' });
@@ -30,6 +34,7 @@ export class ResultsScene extends Phaser.Scene {
     
     this.createBackground();
     this.createResultsDisplay();
+    this.determineLootDrops();
     this.createRewardsDisplay();
     this.createContinueButton();
     
@@ -266,11 +271,47 @@ export class ResultsScene extends Phaser.Scene {
       delay: 800,
       ease: 'Back.easeOut'
     });
+
+    if (this.lootDrops.length > 0) {
+      const lootStartY = startY + 175;
+      this.add.text(width / 2, lootStartY, '═══ LOOT RECOVERED ═══', {
+        fontFamily: 'Georgia, serif',
+        fontSize: '14px',
+        color: '#c9a959'
+      }).setOrigin(0.5);
+
+      this.lootDrops.forEach((item, index) => {
+        const itemY = lootStartY + 30 + index * 24;
+        const rarity = getItemRarity(item);
+        const color = `#${RARITY_COLORS[rarity].toString(16).padStart(6, '0')}`;
+        this.add.text(width / 2 - 120, itemY, getItemIcon(item), {
+          fontSize: '16px'
+        }).setOrigin(0.5);
+        this.add.text(width / 2 - 95, itemY, getItemName(item), {
+          fontFamily: 'Georgia, serif',
+          fontSize: '12px',
+          color
+        }).setOrigin(0, 0.5);
+      });
+    }
     
     // Add sparkle effect on gold
     this.time.delayedCall(400, () => {
       this.createSparkle(width / 2 - 70, startY + 45);
     });
+  }
+
+  private determineLootDrops(): void {
+    if (!this.resultsData.won) return;
+    const run = SaveSystem.getRun();
+    if (!run) return;
+    const league = run.league || 'bronze';
+    this.lootDrops = generateLootDrops({
+      league,
+      crowdHype: this.resultsData.crowdHype ?? 0,
+      consecutiveWins: run.consecutiveWins
+    });
+    this.lootDrops.forEach(item => SaveSystem.addItem(item));
   }
   
   private createSparkle(x: number, y: number): void {

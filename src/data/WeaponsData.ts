@@ -3,6 +3,8 @@
  * 40+ weapons across 8 weapon types with distinct feels
  */
 
+import { SeededRNG } from '../systems/RNGSystem';
+
 export type WeaponType = 
   | 'sword' 
   | 'axe' 
@@ -54,6 +56,204 @@ export interface WeaponData {
   price: number;
   sellPrice: number;
   leagueMin: 'bronze' | 'silver' | 'gold';  // Minimum league to find
+}
+
+export const PROCEDURAL_WEAPON_PREFIX = 'proc_weapon';
+
+export function createProceduralWeaponId(
+  seed: number,
+  league: 'bronze' | 'silver' | 'gold',
+  rarity: ItemRarity,
+  type: WeaponType
+): string {
+  return `${PROCEDURAL_WEAPON_PREFIX}_${seed}_${league}_${rarity}_${type}`;
+}
+
+const PROCEDURAL_WEAPON_ADJECTIVES = [
+  'Jagged',
+  'Gleaming',
+  'Ancient',
+  'Severing',
+  'Vicious',
+  'Honed',
+  'Stormforged',
+  'Gilded',
+  'Ruthless',
+  'Warlord\'s',
+  'Grim',
+  'Bloodstained',
+  'Ironbound',
+  'Whispering',
+  'Cinder',
+  'Dread',
+  'Nightsteel'
+];
+
+const PROCEDURAL_WEAPON_MATERIALS = [
+  'Iron',
+  'Steel',
+  'Obsidian',
+  'Bronze',
+  'Crimson',
+  'Moonsteel',
+  'Ashen',
+  'Blackened',
+  'Sunforged',
+  'Runed'
+];
+
+const PROCEDURAL_WEAPON_SUFFIXES = [
+  'of the Pit',
+  'of Cinders',
+  'of Triumph',
+  'of the Dunes',
+  'of the Bloodline',
+  'of the Coliseum',
+  'of the Pact',
+  'of the Betrayer',
+  'of Last Light'
+];
+
+const WEAPON_TYPE_BONUSES: Record<WeaponType, { damage: number; accuracy: number; crit: number; speed: number; lightCost: number; heavyCost: number }> = {
+  sword: { damage: 1, accuracy: 3, crit: 1, speed: 1, lightCost: 10, heavyCost: 22 },
+  axe: { damage: 2, accuracy: -2, crit: 2, speed: -1, lightCost: 12, heavyCost: 25 },
+  mace: { damage: 2, accuracy: -1, crit: 0, speed: -1, lightCost: 12, heavyCost: 24 },
+  spear: { damage: 1, accuracy: 5, crit: 1, speed: 0, lightCost: 10, heavyCost: 22 },
+  dagger: { damage: 0, accuracy: 6, crit: 4, speed: 2, lightCost: 8, heavyCost: 18 },
+  greatsword: { damage: 3, accuracy: -4, crit: 2, speed: -3, lightCost: 14, heavyCost: 28 },
+  flail: { damage: 2, accuracy: -3, crit: 3, speed: -2, lightCost: 12, heavyCost: 26 },
+  hammer: { damage: 3, accuracy: -5, crit: 1, speed: -3, lightCost: 14, heavyCost: 30 }
+};
+
+function getRarityTier(rarity: ItemRarity): number {
+  switch (rarity) {
+    case 'common':
+      return 1;
+    case 'uncommon':
+      return 2;
+    case 'rare':
+      return 3;
+    case 'epic':
+      return 4;
+    case 'legendary':
+      return 5;
+  }
+}
+
+function getLeagueMultiplier(league: 'bronze' | 'silver' | 'gold'): number {
+  switch (league) {
+    case 'silver':
+      return 1.15;
+    case 'gold':
+      return 1.3;
+    default:
+      return 1;
+  }
+}
+
+function parseProceduralWeaponId(id: string): { seed: number; league: 'bronze' | 'silver' | 'gold'; rarity: ItemRarity; type: WeaponType } | null {
+  if (!id.startsWith(`${PROCEDURAL_WEAPON_PREFIX}_`)) return null;
+  const parts = id.split('_');
+  if (parts.length < 6) return null;
+  const seed = Number(parts[2]);
+  const league = parts[3] as 'bronze' | 'silver' | 'gold';
+  const rarity = parts[4] as ItemRarity;
+  const type = parts[5] as WeaponType;
+  if (!Number.isFinite(seed)) return null;
+  return { seed, league, rarity, type };
+}
+
+function buildProceduralWeapon(id: string): WeaponData | undefined {
+  const parsed = parseProceduralWeaponId(id);
+  if (!parsed) return undefined;
+  const { seed, league, rarity } = parsed;
+  const resolvedType: WeaponType = WEAPON_TYPE_INFO[parsed.type] ? parsed.type : 'sword';
+  const rng = new SeededRNG(seed);
+  const tier = getRarityTier(rarity);
+  const leagueMultiplier = getLeagueMultiplier(league);
+  const typeBonus = WEAPON_TYPE_BONUSES[resolvedType] ?? WEAPON_TYPE_BONUSES.sword;
+
+  const adjective = rng.pick(PROCEDURAL_WEAPON_ADJECTIVES);
+  const material = rng.pick(PROCEDURAL_WEAPON_MATERIALS);
+  const suffix = rng.pick(PROCEDURAL_WEAPON_SUFFIXES);
+  const name = `${adjective} ${material} ${WEAPON_TYPE_INFO[resolvedType].name} ${suffix}`;
+
+  const baseMin = Math.round((4 + tier * 2 + rng.randomInt(0, tier + 2)) * leagueMultiplier + typeBonus.damage);
+  const baseMax = Math.round((baseMin + 3 + rng.randomInt(0, 4 + tier)) * leagueMultiplier);
+  const accuracyMod = typeBonus.accuracy + rng.randomInt(-2, 3) + tier;
+  const critChanceMod = typeBonus.crit + rng.randomInt(0, 3) + Math.floor(tier / 2);
+  const speedMod = typeBonus.speed + rng.randomInt(-1, 2);
+  const lightStaminaCost = Math.max(6, typeBonus.lightCost - Math.floor(tier / 2));
+  const heavyStaminaCost = Math.max(14, typeBonus.heavyCost - Math.floor(tier / 2));
+
+  const effects: WeaponEffect[] = [];
+  const effectPool: WeaponEffect[] = [
+    { type: 'bleed', chance: rng.randomFloat(0.12, 0.3), value: rng.randomInt(2, 4 + tier), description: '' },
+    { type: 'stun', chance: rng.randomFloat(0.08, 0.2), value: rng.randomInt(1, 1 + Math.floor(tier / 2)), description: '' },
+    { type: 'armor_break', chance: rng.randomFloat(0.12, 0.3), value: rng.randomInt(2, 5 + tier), description: '' },
+    { type: 'crit_bonus', chance: rng.randomFloat(0.15, 0.35), value: rng.randomInt(5, 8 + tier * 2), description: '' },
+    { type: 'first_strike', chance: rng.randomFloat(0.15, 0.3), value: rng.randomInt(5, 10 + tier * 2), description: '' },
+    { type: 'guard_crush', chance: rng.randomFloat(0.1, 0.25), value: rng.randomInt(10, 20 + tier * 5), description: '' },
+    { type: 'lifesteal', chance: rng.randomFloat(0.12, 0.25), value: rng.randomInt(5, 10 + tier * 3), description: '' },
+    { type: 'focus_gain', chance: rng.randomFloat(0.2, 0.35), value: rng.randomInt(3, 6 + tier), description: '' },
+    { type: 'momentum_gain', chance: rng.randomFloat(0.2, 0.35), value: rng.randomInt(1, 2 + Math.floor(tier / 2)), description: '' },
+    { type: 'poison', chance: rng.randomFloat(0.1, 0.22), value: rng.randomInt(2, 4 + tier), description: '' }
+  ];
+
+  const effectCount = tier >= 5 ? 3 : tier >= 4 ? 2 : tier >= 3 ? 1 : 0;
+  if (effectCount > 0) {
+    rng.pickMultiple(effectPool, effectCount).forEach(effect => {
+      const description = (() => {
+        switch (effect.type) {
+          case 'bleed':
+            return `${Math.round(effect.chance * 100)}% bleed for ${effect.value}`;
+          case 'stun':
+            return `${Math.round(effect.chance * 100)}% stun for ${effect.value} turns`;
+          case 'armor_break':
+            return `${Math.round(effect.chance * 100)}% armor break ${effect.value}`;
+          case 'crit_bonus':
+            return `${Math.round(effect.chance * 100)}% crits deal +${effect.value}%`;
+          case 'first_strike':
+            return `${Math.round(effect.chance * 100)}% first strike +${effect.value}%`;
+          case 'guard_crush':
+            return `${Math.round(effect.chance * 100)}% guard crush ${effect.value}%`;
+          case 'lifesteal':
+            return `${Math.round(effect.chance * 100)}% lifesteal ${effect.value}%`;
+          case 'focus_gain':
+            return `${Math.round(effect.chance * 100)}% gain ${effect.value} focus`;
+          case 'momentum_gain':
+            return `${Math.round(effect.chance * 100)}% gain ${effect.value} momentum`;
+          case 'poison':
+            return `${Math.round(effect.chance * 100)}% poison for ${effect.value}`;
+        }
+      })();
+      effects.push({ ...effect, description });
+    });
+  }
+
+  const price = Math.round((baseMax + baseMin) * 6 + tier * 35);
+  const sellPrice = Math.round(price * 0.35);
+
+  return {
+    id,
+    name,
+    type: resolvedType,
+    rarity,
+    icon: WEAPON_TYPE_INFO[resolvedType].icon,
+    damageMin: baseMin,
+    damageMax: baseMax,
+    lightStaminaCost,
+    heavyStaminaCost,
+    accuracyMod,
+    critChanceMod,
+    speedMod,
+    effects,
+    damageDescription: `Light: ${material.toLowerCase()} slash. Heavy: ${adjective.toLowerCase()} cleave.`,
+    lore: `Forged in the ${league} pits, whispered to bear ${adjective.toLowerCase()} fury.`,
+    price,
+    sellPrice,
+    leagueMin: league
+  };
 }
 
 // Weapon type base characteristics
@@ -777,6 +977,9 @@ export const WEAPONS_DATA: WeaponData[] = [
 
 // Helper functions
 export function getWeaponById(id: string): WeaponData | undefined {
+  if (id.startsWith(`${PROCEDURAL_WEAPON_PREFIX}_`)) {
+    return buildProceduralWeapon(id);
+  }
   return WEAPONS_DATA.find(w => w.id === id);
 }
 
