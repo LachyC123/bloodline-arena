@@ -61,8 +61,20 @@ export class FightScene extends Phaser.Scene {
   private playerStaminaBar!: { fill: Phaser.GameObjects.Graphics; x: number; y: number; w: number; h: number };
   private playerFocusBar!: { fill: Phaser.GameObjects.Graphics; x: number; y: number; w: number; h: number };
   private combatLog!: Phaser.GameObjects.Text;
+  private combatFeed!: Phaser.GameObjects.Text;
   private roundText!: Phaser.GameObjects.Text;
   private hypeBar!: { fill: Phaser.GameObjects.Graphics; x: number; y: number; w: number; h: number };
+  private momentumText!: Phaser.GameObjects.Text;
+  private playerHpText!: Phaser.GameObjects.Text;
+  private enemyHpText!: Phaser.GameObjects.Text;
+  private playerResourceText!: Phaser.GameObjects.Text;
+  private enemyResourceText!: Phaser.GameObjects.Text;
+  private playerStatusText!: Phaser.GameObjects.Text;
+  private enemyStatusText!: Phaser.GameObjects.Text;
+  private playerInjuryBar!: { fill: Phaser.GameObjects.Graphics; x: number; y: number; w: number; h: number };
+  private enemyInjuryBar!: { fill: Phaser.GameObjects.Graphics; x: number; y: number; w: number; h: number };
+  private parryIndicatorText!: Phaser.GameObjects.Text;
+  private enemyIntentText!: Phaser.GameObjects.Text;
   
   // Action buttons
   private actionButtonsContainer: Phaser.GameObjects.Container | null = null;
@@ -361,11 +373,11 @@ export class FightScene extends Phaser.Scene {
     
     // Arena gradient (warm sand tones)
     const bg = this.add.graphics();
-    bg.fillGradientStyle(0x3a2a1a, 0x3a2a1a, 0x2a1f15, 0x2a1f15);
+    bg.fillGradientStyle(0x3b2418, 0x2d1c13, 0x21150f, 0x1b110c);
     bg.fillRect(0, 0, width, height);
     
     // Arena floor (sand)
-    bg.fillStyle(0x4a3a20, 1);
+    bg.fillStyle(0x4b3521, 1);
     bg.fillRect(0, height * 0.55, width, height * 0.45);
     
     // Sand texture lines
@@ -376,6 +388,16 @@ export class FightScene extends Phaser.Scene {
       bg.lineTo(width, y + Math.random() * 10);
     }
     bg.strokePath();
+
+    // Arena banners
+    bg.fillStyle(0x4a1f1a, 0.9);
+    for (let i = 0; i < 4; i++) {
+      const bannerX = width * (0.15 + i * 0.22);
+      const bannerY = height * 0.08;
+      bg.fillRoundedRect(bannerX, bannerY, width * 0.12, height * 0.18, 8);
+      bg.lineStyle(2, 0x8b6b2f, 0.8);
+      bg.strokeRoundedRect(bannerX, bannerY, width * 0.12, height * 0.18, 8);
+    }
     
     // Arena wall silhouette
     bg.fillStyle(0x2a1a10, 0.6);
@@ -389,12 +411,42 @@ export class FightScene extends Phaser.Scene {
       bg.fillCircle(cx, cy, 8 + Math.random() * 5);
       bg.fillRect(cx - 5, cy, 10, 15);
     }
+
+    // Torch glow accents
+    const glow = this.add.graphics();
+    glow.fillStyle(0xffd37a, 0.18);
+    glow.fillCircle(width * 0.1, height * 0.22, 90);
+    glow.fillCircle(width * 0.9, height * 0.22, 90);
+    glow.fillStyle(0xff9a3c, 0.2);
+    glow.fillCircle(width * 0.1, height * 0.22, 45);
+    glow.fillCircle(width * 0.9, height * 0.22, 45);
     
     // Vignette effect
     const vignette = this.add.graphics();
     vignette.fillStyle(0x000000, 0.4);
     vignette.fillRect(0, 0, width, height * 0.08);
     vignette.fillRect(0, height * 0.92, width, height * 0.08);
+
+    // Ambient dust motes
+    for (let i = 0; i < 16; i++) {
+      const mote = this.add.circle(
+        Phaser.Math.Between(30, width - 30),
+        Phaser.Math.Between(height * 0.25, height * 0.8),
+        Phaser.Math.Between(1, 3),
+        0xd8c9a8,
+        0.18
+      );
+      this.tweens.add({
+        targets: mote,
+        y: mote.y - Phaser.Math.Between(15, 35),
+        x: mote.x + Phaser.Math.Between(-12, 12),
+        alpha: { from: mote.alpha, to: 0.05 },
+        duration: Phaser.Math.Between(2500, 4000),
+        yoyo: true,
+        repeat: -1,
+        delay: Phaser.Math.Between(0, 800)
+      });
+    }
   }
 
   private createFighters(): void {
@@ -422,6 +474,13 @@ export class FightScene extends Phaser.Scene {
   private createCombatUI(): void {
     const { width, height } = this.cameras.main;
     const safe = getSafeArea();
+
+    // HUD panel backdrop
+    const hudPanel = this.add.graphics();
+    hudPanel.fillGradientStyle(0x1c1210, 0x1c1210, 0x261912, 0x261912, 0.95);
+    hudPanel.fillRect(0, safe.top, width, 88);
+    hudPanel.lineStyle(2, 0x7a5b2e, 0.6);
+    hudPanel.strokeRect(0, safe.top, width, 88);
     
     // Round indicator
     this.roundText = this.add.text(width / 2, safe.top + 15, `ROUND ${this.combatState.round}`, {
@@ -431,19 +490,24 @@ export class FightScene extends Phaser.Scene {
     }).setOrigin(0.5);
     
     // Player health bar (left)
-    const pBarX = safe.left;
-    const pBarY = safe.top + 40;
+    const pBarX = safe.left + 6;
+    const pBarY = safe.top + 42;
     const pBarW = Math.min(140, width * 0.35);
     const pBarH = 18;
     
     this.playerHealthBar = this.createHealthBar(pBarX, pBarY, pBarW, pBarH, true);
     
     // Player name
-    this.add.text(pBarX, pBarY - 15, this.player.firstName, {
+    this.add.text(pBarX, pBarY - 18, this.player.firstName, {
       fontFamily: 'Georgia, serif',
-      fontSize: '11px',
+      fontSize: '12px',
       color: '#c9a959'
     });
+    this.playerHpText = this.add.text(pBarX + pBarW - 2, pBarY - 18, '', {
+      fontFamily: 'Georgia, serif',
+      fontSize: '10px',
+      color: '#e7d8b1'
+    }).setOrigin(1, 0);
     
     // Player stamina bar
     this.playerStaminaBar = this.createResourceBar(pBarX, pBarY + 22, pBarW * 0.8, 10, 0x4682b4);
@@ -461,19 +525,43 @@ export class FightScene extends Phaser.Scene {
       color: '#8b7355'
     });
     
+    // Player injury meter
+    this.playerInjuryBar = this.createResourceBar(pBarX, pBarY + 48, pBarW * 0.7, 6, 0xb22222);
+    this.add.text(pBarX, pBarY + 47, 'INJ', {
+      fontFamily: 'Georgia, serif',
+      fontSize: '7px',
+      color: '#8b7355'
+    });
+    
+    this.playerResourceText = this.add.text(pBarX, pBarY + 60, '', {
+      fontFamily: 'Georgia, serif',
+      fontSize: '8px',
+      color: '#bda578'
+    });
+    this.playerStatusText = this.add.text(pBarX, pBarY + 72, '', {
+      fontFamily: 'Georgia, serif',
+      fontSize: '8px',
+      color: '#c9a959'
+    });
+    
     // Enemy health bar (right)
     const eBarW = Math.min(140, width * 0.35);
-    const eBarX = width - safe.right - eBarW;
-    const eBarY = safe.top + 40;
+    const eBarX = width - safe.right - eBarW - 6;
+    const eBarY = safe.top + 42;
     
     this.enemyHealthBar = this.createHealthBar(eBarX, eBarY, eBarW, pBarH, false);
     
     // Enemy name
-    this.add.text(eBarX + eBarW, eBarY - 15, this.enemy.firstName, {
+    this.add.text(eBarX + eBarW, eBarY - 18, this.enemy.firstName, {
       fontFamily: 'Georgia, serif',
-      fontSize: '11px',
+      fontSize: '12px',
       color: '#8b4513'
     }).setOrigin(1, 0);
+    this.enemyHpText = this.add.text(eBarX, eBarY - 18, '', {
+      fontFamily: 'Georgia, serif',
+      fontSize: '10px',
+      color: '#e7d8b1'
+    }).setOrigin(0, 0);
     
     // Check if enemy has mutators
     const enemyWithMutators = this.enemy as EnemyFighter;
@@ -505,6 +593,23 @@ export class FightScene extends Phaser.Scene {
         fontStyle: 'italic'
       }).setOrigin(1, 0);
     }
+
+    this.enemyInjuryBar = this.createResourceBar(eBarX + eBarW * 0.3, eBarY + 48, eBarW * 0.7, 6, 0xb22222);
+    this.add.text(eBarX + eBarW * 0.3, eBarY + 47, 'INJ', {
+      fontFamily: 'Georgia, serif',
+      fontSize: '7px',
+      color: '#8b7355'
+    });
+    this.enemyResourceText = this.add.text(eBarX + eBarW, eBarY + 60, '', {
+      fontFamily: 'Georgia, serif',
+      fontSize: '8px',
+      color: '#bda578'
+    }).setOrigin(1, 0);
+    this.enemyStatusText = this.add.text(eBarX + eBarW, eBarY + 72, '', {
+      fontFamily: 'Georgia, serif',
+      fontSize: '8px',
+      color: '#c9a959'
+    }).setOrigin(1, 0);
     
     // Crowd hype bar (center top)
     const hypeW = 120;
@@ -513,6 +618,23 @@ export class FightScene extends Phaser.Scene {
       fontFamily: 'Georgia, serif',
       fontSize: '8px',
       color: '#8b7355'
+    }).setOrigin(0.5, 0);
+    this.momentumText = this.add.text(width / 2, safe.top + 47, '', {
+      fontFamily: 'Georgia, serif',
+      fontSize: '8px',
+      color: '#c9a959'
+    }).setOrigin(0.5, 0);
+
+    this.parryIndicatorText = this.add.text(width / 2, safe.top + 62, '', {
+      fontFamily: 'Georgia, serif',
+      fontSize: '9px',
+      color: '#f5d77a'
+    }).setOrigin(0.5, 0);
+
+    this.enemyIntentText = this.add.text(width / 2, safe.top + 75, '', {
+      fontFamily: 'Georgia, serif',
+      fontSize: '9px',
+      color: '#e7b97d'
     }).setOrigin(0.5, 0);
     
     // Combat log
@@ -524,6 +646,14 @@ export class FightScene extends Phaser.Scene {
       align: 'center',
       stroke: '#000000',
       strokeThickness: 2
+    }).setOrigin(0.5).setDepth(50);
+    
+    this.combatFeed = this.add.text(width / 2, height * 0.44, '', {
+      fontFamily: 'Georgia, serif',
+      fontSize: '9px',
+      color: '#d8c9a8',
+      align: 'center',
+      wordWrap: { width: width - 60 }
     }).setOrigin(0.5).setDepth(50);
     
     // Update all bars
@@ -576,6 +706,7 @@ export class FightScene extends Phaser.Scene {
       this.combatState.player.currentHP, 
       this.player.currentStats.maxHP
     );
+    this.playerHpText.setText(`${this.combatState.player.currentHP}/${this.player.currentStats.maxHP}`);
     
     // Enemy health
     this.updateHealthBar(
@@ -583,6 +714,7 @@ export class FightScene extends Phaser.Scene {
       this.combatState.enemy.currentHP, 
       this.enemy.currentStats.maxHP
     );
+    this.enemyHpText.setText(`${this.combatState.enemy.currentHP}/${this.enemy.currentStats.maxHP}`);
     
     // Stamina
     this.updateResourceBar(
@@ -597,6 +729,17 @@ export class FightScene extends Phaser.Scene {
       this.combatState.player.currentFocus / this.player.currentStats.maxFocus,
       0x9932cc
     );
+
+    this.updateResourceBar(
+      this.playerInjuryBar,
+      this.combatState.player.injuryMeter / 100,
+      0xb22222
+    );
+    this.updateResourceBar(
+      this.enemyInjuryBar,
+      this.combatState.enemy.injuryMeter / 100,
+      0xb22222
+    );
     
     // Hype
     this.updateResourceBar(
@@ -604,12 +747,50 @@ export class FightScene extends Phaser.Scene {
       this.combatState.crowdHype / 100,
       0xffd700
     );
+
+    this.playerResourceText.setText(
+      `STA ${this.combatState.player.currentStamina}/${this.player.currentStats.maxStamina} · FOC ${this.combatState.player.currentFocus}/${this.player.currentStats.maxFocus}`
+    );
+    this.enemyResourceText.setText(
+      `STA ${this.combatState.enemy.currentStamina}/${this.enemy.currentStats.maxStamina} · FOC ${this.combatState.enemy.currentFocus}/${this.enemy.currentStats.maxFocus}`
+    );
+
+    this.playerStatusText.setText(this.getStatusSummary(this.combatState.player));
+    this.enemyStatusText.setText(this.getStatusSummary(this.combatState.enemy));
+
+    this.momentumText.setText(this.getMomentumLabel(this.combatState.crowdHype));
+    this.parryIndicatorText.setText(this.combatState.isParryWindow ? '⚡ PARRY WINDOW' : '');
+
+    this.updateCombatFeed();
   }
 
   private createActionPanel(): void {
     const { width, height } = this.cameras.main;
     const content = getContentArea(this);
     const safe = getSafeArea();
+
+    const panel = this.add.graphics();
+    panel.fillGradientStyle(0x231711, 0x231711, 0x1c130f, 0x1c130f, 0.95);
+    panel.fillRoundedRect(
+      safe.left + 8,
+      height * 0.6,
+      width - safe.left - safe.right - 16,
+      height * 0.35,
+      16
+    );
+    panel.lineStyle(2, 0x7a5b2e, 0.5);
+    panel.strokeRoundedRect(
+      safe.left + 8,
+      height * 0.6,
+      width - safe.left - safe.right - 16,
+      height * 0.35,
+      16
+    );
+    this.add.text(width / 2, height * 0.605, 'TACTICAL COMMANDS', {
+      fontFamily: 'Georgia, serif',
+      fontSize: '11px',
+      color: '#c9a959'
+    }).setOrigin(0.5, 0);
     
     // Zone selection buttons at top of action area
     const zoneY = height * 0.62;
@@ -658,7 +839,7 @@ export class FightScene extends Phaser.Scene {
     const container = this.add.container(x, y);
     
     const bg = this.add.graphics();
-    bg.fillStyle(0x2a1f1a, 0.9);
+    bg.fillStyle(0x2a1f1a, 0.95);
     bg.fillRoundedRect(-w / 2, -h / 2, w, h, 5);
     bg.lineStyle(2, 0x5a4a3a, 1);
     bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 5);
@@ -716,25 +897,25 @@ export class FightScene extends Phaser.Scene {
     }
     
     const bg = this.add.graphics();
-    bg.fillStyle(0x2a1f1a, 0.95);
+    bg.fillStyle(0x241b16, 0.98);
     bg.fillRoundedRect(-w / 2, -h / 2, w, h, 6);
     bg.lineStyle(2, 0x5a4a3a, 1);
     bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 6);
     container.add(bg);
     
     const iconText = this.add.text(-w / 2 + 10, 0, icon, {
-      fontSize: '16px'
+      fontSize: '17px'
     }).setOrigin(0, 0.5);
     container.add(iconText);
     
-    const labelText = this.add.text(-w / 2 + 32, -5, label, {
+    const labelText = this.add.text(-w / 2 + 32, -6, label, {
       fontFamily: 'Georgia, serif',
       fontSize: '11px',
-      color: '#c9a959'
+      color: '#f0d98a'
     });
     container.add(labelText);
     
-    const costText = this.add.text(-w / 2 + 32, 8, `${staminaCost} sta`, {
+    const costText = this.add.text(-w / 2 + 32, 9, `${staminaCost} sta`, {
       fontFamily: 'Georgia, serif',
       fontSize: '9px',
       color: '#8b7355'
@@ -898,6 +1079,7 @@ export class FightScene extends Phaser.Scene {
       item: '🧪'
     };
     this.showCombatMessage(`Enemy prepares: ${intentIcons[action]}`);
+    this.enemyIntentText.setText(`INTENT: ${intentIcons[action]} ${this.getActionLabel(action)}`);
     
     await this.delay(500);
     
@@ -930,6 +1112,7 @@ export class FightScene extends Phaser.Scene {
     }
     
     this.updateAllBars();
+    this.enemyIntentText.setText('');
     
     // Check for combat end
     if (this.combatState.winner) {
@@ -983,6 +1166,61 @@ export class FightScene extends Phaser.Scene {
       duration: 80,
       yoyo: true
     });
+  }
+
+  private updateCombatFeed(): void {
+    const recent = this.combatState.log.slice(-3).map((entry) => {
+      const actor = entry.actor === 'player' ? 'You' : 'Enemy';
+      const actionLabel = this.getActionLabel(entry.action);
+      const damageText = entry.result.damage > 0 ? `for ${entry.result.damage}` : 'no damage';
+      const zone = entry.result.targetZone.toUpperCase();
+      return `${actor} ${actionLabel} ${zone} (${damageText})`;
+    });
+    this.combatFeed.setText(recent.join('\n'));
+  }
+
+  private getActionLabel(action: CombatAction): string {
+    const labels: Record<CombatAction, string> = {
+      light_attack: 'strikes',
+      heavy_attack: 'crushes',
+      guard: 'guards',
+      dodge: 'dodges',
+      special: 'unleashes',
+      item: 'uses item'
+    };
+    return labels[action];
+  }
+
+  private getStatusSummary(combatant: { activeEffects: Map<string, number>; guardStance: TargetZone | null; currentFocus: number }): string {
+    const effectIcons: Record<string, string> = {
+      bleed: '🩸',
+      stun: '⚡',
+      cripple: '🦵',
+      concuss: '💫',
+      fear: '😱',
+      disarmed: '🗡️',
+      inspired: '✨',
+      enraged: '🔥',
+      poison: '☠️',
+      armor_break: '🛡️'
+    };
+    const effects = Array.from(combatant.activeEffects.entries()).map(([effect, turns]) => {
+      const icon = effectIcons[effect] || '❖';
+      return `${icon}${turns}`;
+    });
+    const stance = combatant.guardStance ? `Guard ${combatant.guardStance.toUpperCase()}` : 'Open stance';
+    const specialReady = combatant.currentFocus >= 30 ? ' · SPECIAL READY' : '';
+    if (effects.length === 0) {
+      return `${stance}${specialReady}`;
+    }
+    return `${stance}${specialReady} · ${effects.join(' ')}`;
+  }
+
+  private getMomentumLabel(hype: number): string {
+    if (hype >= 75) return 'Momentum: ROARING';
+    if (hype >= 50) return 'Momentum: RISING';
+    if (hype >= 25) return 'Momentum: WAVERING';
+    return 'Momentum: QUIET';
   }
 
   private shakeScreen(): void {
@@ -1079,7 +1317,8 @@ export class FightScene extends Phaser.Scene {
           won: true, 
           rewards,
           injury,
-          enemy: this.enemy
+          enemy: this.enemy,
+          crowdHype: this.combatState.crowdHype
         });
       });
     } else {
