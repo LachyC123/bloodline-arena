@@ -6,16 +6,20 @@ import Phaser from 'phaser';
 import { SaveSystem } from '../systems/SaveSystem';
 import { Fighter, addTrust, Injury } from '../systems/FighterSystem';
 import { UIHelper } from '../ui/UIHelper';
+import { ItemInstance, getItemName, getItemIcon, getItemRarity, RARITY_COLORS } from '../systems/InventorySystem';
+import { generateLootDrops } from '../systems/LootSystem';
 
 interface ResultsData {
   won: boolean;
   rewards: { gold: number; fame: number; xp: number };
   injury: Injury | null;
   enemy: Fighter;
+  crowdHype?: number;
 }
 
 export class ResultsScene extends Phaser.Scene {
   private resultsData!: ResultsData;
+  private lootDrops: ItemInstance[] = [];
   
   constructor() {
     super({ key: 'ResultsScene' });
@@ -30,6 +34,7 @@ export class ResultsScene extends Phaser.Scene {
     
     this.createBackground();
     this.createResultsDisplay();
+    this.determineLootDrops();
     this.createRewardsDisplay();
     this.createContinueButton();
     
@@ -52,8 +57,20 @@ export class ResultsScene extends Phaser.Scene {
     const { width, height } = this.cameras.main;
     
     const bg = this.add.graphics();
-    bg.fillGradientStyle(0x1a1410, 0x1a1410, 0x2a1f1a, 0x2a1f1a);
+    bg.fillGradientStyle(0x120d0a, 0x1c1410, 0x2d2018, 0x16100b);
     bg.fillRect(0, 0, width, height);
+
+    const spotlight = this.add.graphics();
+    spotlight.fillStyle(0xffd37a, 0.12);
+    spotlight.fillEllipse(width / 2, height * 0.35, width * 0.75, height * 0.4);
+    spotlight.fillStyle(0x5a3215, 0.2);
+    spotlight.fillEllipse(width / 2, height * 0.42, width * 0.5, height * 0.25);
+
+    const frame = this.add.graphics();
+    frame.lineStyle(3, 0x7a5b2e, 0.7);
+    frame.strokeRoundedRect(18, 20, width - 36, height - 40, 18);
+    frame.lineStyle(1, 0x2a1f1a, 0.8);
+    frame.strokeRoundedRect(26, 30, width - 52, height - 60, 16);
   }
 
   private createResultsDisplay(): void {
@@ -266,11 +283,47 @@ export class ResultsScene extends Phaser.Scene {
       delay: 800,
       ease: 'Back.easeOut'
     });
+
+    if (this.lootDrops.length > 0) {
+      const lootStartY = startY + 175;
+      this.add.text(width / 2, lootStartY, '═══ LOOT RECOVERED ═══', {
+        fontFamily: 'Georgia, serif',
+        fontSize: '14px',
+        color: '#c9a959'
+      }).setOrigin(0.5);
+
+      this.lootDrops.forEach((item, index) => {
+        const itemY = lootStartY + 30 + index * 24;
+        const rarity = getItemRarity(item);
+        const color = `#${RARITY_COLORS[rarity].toString(16).padStart(6, '0')}`;
+        this.add.text(width / 2 - 120, itemY, getItemIcon(item), {
+          fontSize: '16px'
+        }).setOrigin(0.5);
+        this.add.text(width / 2 - 95, itemY, getItemName(item), {
+          fontFamily: 'Georgia, serif',
+          fontSize: '12px',
+          color
+        }).setOrigin(0, 0.5);
+      });
+    }
     
     // Add sparkle effect on gold
     this.time.delayedCall(400, () => {
       this.createSparkle(width / 2 - 70, startY + 45);
     });
+  }
+
+  private determineLootDrops(): void {
+    if (!this.resultsData.won) return;
+    const run = SaveSystem.getRun();
+    if (!run) return;
+    const league = run.league || 'bronze';
+    this.lootDrops = generateLootDrops({
+      league,
+      crowdHype: this.resultsData.crowdHype ?? 0,
+      consecutiveWins: run.consecutiveWins
+    });
+    this.lootDrops.forEach(item => SaveSystem.addItem(item));
   }
   
   private createSparkle(x: number, y: number): void {

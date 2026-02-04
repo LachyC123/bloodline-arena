@@ -5,19 +5,17 @@
 import Phaser from 'phaser';
 import { SaveSystem } from '../systems/SaveSystem';
 import { Fighter } from '../systems/FighterSystem';
-import { WEAPONS_DATA as OLD_WEAPONS, ARMOR_DATA as OLD_ARMOR, COMBAT_ITEMS } from '../data/CombatData';
-import { WEAPONS_DATA } from '../data/WeaponsData';
-import { ARMOR_DATA } from '../data/ArmorData';
+import { COMBAT_ITEMS } from '../data/CombatData';
 import { 
   createItemInstance, 
-  createAffixedItemInstance, 
   ItemInstance, 
   getItemName,
-  getItemData 
+  getItemData,
+  generateRandomWeapon,
+  generateRandomArmor
 } from '../systems/InventorySystem';
 import { getAffixSummary, hasAffixes } from '../systems/AffixSystem';
 import { UIHelper } from '../ui/UIHelper';
-import { RNG } from '../systems/RNGSystem';
 
 export class ShopScene extends Phaser.Scene {
   private gold!: number;
@@ -60,32 +58,17 @@ export class ShopScene extends Phaser.Scene {
     const numWeapons = 3 + Math.floor(meta.promoterLevel / 2);
     const numArmor = 3 + Math.floor(meta.promoterLevel / 2);
     
-    // Filter weapons/armor by league availability
-    const leagueOrder = ['bronze', 'silver', 'gold'];
-    const leagueIdx = leagueOrder.indexOf(league);
-    
     this.shopStock = [];
     
     // Generate weapons as ItemInstances with affixes
-    const availableWeapons = WEAPONS_DATA.filter(w => 
-      leagueOrder.indexOf(w.leagueMin) <= leagueIdx
-    );
-    const weapons = RNG.shuffle([...availableWeapons]).slice(0, numWeapons);
-    weapons.forEach(w => {
-      // Create item instance with affixes rolled based on rarity and league
-      const instance = createAffixedItemInstance(w.id, 'weapon', w.rarity, league);
-      this.shopStock.push(instance);
-    });
+    for (let i = 0; i < numWeapons; i++) {
+      this.shopStock.push(generateRandomWeapon(league, true));
+    }
     
     // Generate armor as ItemInstances with affixes
-    const availableArmor = ARMOR_DATA.filter(a => 
-      leagueOrder.indexOf(a.leagueMin) <= leagueIdx
-    );
-    const armor = RNG.shuffle([...availableArmor]).slice(0, numArmor);
-    armor.forEach(a => {
-      const instance = createAffixedItemInstance(a.id, 'armor', a.rarity, league, a.slot);
-      this.shopStock.push(instance);
-    });
+    for (let i = 0; i < numArmor; i++) {
+      this.shopStock.push(generateRandomArmor(league, undefined, true));
+    }
     
     // Consumables (no affixes)
     COMBAT_ITEMS.forEach(item => {
@@ -100,14 +83,26 @@ export class ShopScene extends Phaser.Scene {
     const { width, height } = this.cameras.main;
     
     const bg = this.add.graphics();
-    bg.fillGradientStyle(0x1a1410, 0x1a1410, 0x2a1f1a, 0x2a1f1a);
+    bg.fillGradientStyle(0x120d0a, 0x1c1410, 0x2b2018, 0x17110c);
     bg.fillRect(0, 0, width, height);
     
     if (this.textures.exists('parchment_overlay')) {
       const overlay = this.add.image(width / 2, height / 2, 'parchment_overlay');
-      overlay.setAlpha(0.08);
+      overlay.setAlpha(0.12);
       overlay.setDisplaySize(width, height);
     }
+
+    const shelves = this.add.graphics();
+    shelves.fillStyle(0x2a1a10, 0.6);
+    shelves.fillRoundedRect(20, 120, width - 40, height - 160, 18);
+    shelves.lineStyle(2, 0x7a5b2e, 0.5);
+    shelves.strokeRoundedRect(20, 120, width - 40, height - 160, 18);
+
+    const banner = this.add.graphics();
+    banner.fillStyle(0x4a1f1a, 0.75);
+    banner.fillRoundedRect(width / 2 - 130, 12, 260, 70, 16);
+    banner.lineStyle(2, 0x9a7b3b, 0.6);
+    banner.strokeRoundedRect(width / 2 - 130, 12, 260, 70, 16);
   }
 
   private createHeader(): void {
