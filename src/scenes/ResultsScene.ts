@@ -57,8 +57,20 @@ export class ResultsScene extends Phaser.Scene {
     const { width, height } = this.cameras.main;
     
     const bg = this.add.graphics();
-    bg.fillGradientStyle(0x1a1410, 0x1a1410, 0x2a1f1a, 0x2a1f1a);
+    bg.fillGradientStyle(0x120d0a, 0x1c1410, 0x2d2018, 0x16100b);
     bg.fillRect(0, 0, width, height);
+
+    const spotlight = this.add.graphics();
+    spotlight.fillStyle(0xffd37a, 0.12);
+    spotlight.fillEllipse(width / 2, height * 0.35, width * 0.75, height * 0.4);
+    spotlight.fillStyle(0x5a3215, 0.2);
+    spotlight.fillEllipse(width / 2, height * 0.42, width * 0.5, height * 0.25);
+
+    const frame = this.add.graphics();
+    frame.lineStyle(3, 0x7a5b2e, 0.7);
+    frame.strokeRoundedRect(18, 20, width - 36, height - 40, 18);
+    frame.lineStyle(1, 0x2a1f1a, 0.8);
+    frame.strokeRoundedRect(26, 30, width - 52, height - 60, 16);
   }
 
   private createResultsDisplay(): void {

@@ -83,14 +83,26 @@ export class ShopScene extends Phaser.Scene {
     const { width, height } = this.cameras.main;
     
     const bg = this.add.graphics();
-    bg.fillGradientStyle(0x1a1410, 0x1a1410, 0x2a1f1a, 0x2a1f1a);
+    bg.fillGradientStyle(0x120d0a, 0x1c1410, 0x2b2018, 0x17110c);
     bg.fillRect(0, 0, width, height);
     
     if (this.textures.exists('parchment_overlay')) {
       const overlay = this.add.image(width / 2, height / 2, 'parchment_overlay');
-      overlay.setAlpha(0.08);
+      overlay.setAlpha(0.12);
       overlay.setDisplaySize(width, height);
     }
+
+    const shelves = this.add.graphics();
+    shelves.fillStyle(0x2a1a10, 0.6);
+    shelves.fillRoundedRect(20, 120, width - 40, height - 160, 18);
+    shelves.lineStyle(2, 0x7a5b2e, 0.5);
+    shelves.strokeRoundedRect(20, 120, width - 40, height - 160, 18);
+
+    const banner = this.add.graphics();
+    banner.fillStyle(0x4a1f1a, 0.75);
+    banner.fillRoundedRect(width / 2 - 130, 12, 260, 70, 16);
+    banner.lineStyle(2, 0x9a7b3b, 0.6);
+    banner.strokeRoundedRect(width / 2 - 130, 12, 260, 70, 16);
   }
 
   private createHeader(): void {
