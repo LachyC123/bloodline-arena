@@ -209,17 +209,26 @@ export class MainMenuScene extends Phaser.Scene {
     // Meta info at bottom
     const meta = SaveSystem.getMeta();
     const statsText = `Runs: ${meta.totalRuns} | Wins: ${meta.totalWins} | Deaths: ${meta.totalDeaths}`;
-    this.add.text(centerX, height - 60, statsText, {
+
+    const metaPanel = this.add.graphics();
+    metaPanel.fillStyle(0x120e0b, 0.7);
+    metaPanel.fillRoundedRect(centerX - 210, height - 90, 420, 60, 10);
+    metaPanel.lineStyle(1, 0x6d5332, 0.7);
+    metaPanel.strokeRoundedRect(centerX - 210, height - 90, 420, 60, 10);
+
+    this.add.text(centerX, height - 67, statsText, {
       fontFamily: 'Georgia, serif',
       fontSize: '12px',
-      color: '#5a4a3a'
+      color: '#8e7454',
+      stroke: '#000000',
+      strokeThickness: 1
     }).setOrigin(0.5);
     
     // Version
-    this.add.text(centerX, height - 35, 'v1.0.0', {
+    this.add.text(centerX, height - 42, 'v1.0.0', {
       fontFamily: 'Georgia, serif',
       fontSize: '10px',
-      color: '#3a3025'
+      color: '#5a4733'
     }).setOrigin(0.5);
     
     // Dev-only: Combat smoke test button

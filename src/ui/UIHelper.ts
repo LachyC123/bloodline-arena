@@ -11,6 +11,15 @@ interface ButtonOptions {
   primary?: boolean;
 }
 
+interface ButtonVisualPalette {
+  fillTop: number;
+  fillBottom: number;
+  strokeOuter: number;
+  strokeInner: number;
+  text: string;
+  glow: number;
+}
+
 export class UIHelper {
   /**
    * Create a styled button
@@ -31,23 +40,39 @@ export class UIHelper {
     } = options;
     
     const container = scene.add.container(x, y);
+    container.setSize(width, height);
+
+    const basePalette = this.getButtonPalette(primary, false);
+    const hoverPalette = this.getButtonPalette(primary, true);
+
+    const shadow = scene.add.graphics();
+    shadow.fillStyle(0x000000, 0.35);
+    shadow.fillRoundedRect(-width / 2 + 2, -height / 2 + 4, width, height, 10);
+    container.add(shadow);
+
+    const glow = scene.add.graphics();
+    glow.fillStyle(basePalette.glow, 0.14);
+    glow.fillRoundedRect(-width / 2 - 4, -height / 2 - 4, width + 8, height + 8, 12);
+    glow.setAlpha(0);
+    container.add(glow);
     
     // Background
     const bg = scene.add.graphics();
-    const fillColor = primary ? 0x4a3a2a : 0x2a1f1a;
-    const strokeColor = primary ? 0xc9a959 : 0x5a4a3a;
-    
-    bg.fillStyle(fillColor, 1);
-    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 8);
-    bg.lineStyle(2, strokeColor, 1);
-    bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 8);
+    this.drawButtonState(bg, width, height, basePalette);
     container.add(bg);
+
+    const sheen = scene.add.graphics();
+    sheen.fillGradientStyle(0xffffff, 0xffffff, 0xffffff, 0xffffff, 0.08, 0.08, 0, 0);
+    sheen.fillRoundedRect(-width / 2 + 2, -height / 2 + 2, width - 4, Math.max(8, height * 0.42), 8);
+    container.add(sheen);
     
     // Text
     const label = scene.add.text(0, 0, text, {
       fontFamily: 'Georgia, serif',
       fontSize: fontSize,
-      color: primary ? '#c9a959' : '#8b7355'
+      color: basePalette.text,
+      stroke: '#000000',
+      strokeThickness: 1
     }).setOrigin(0.5);
     container.add(label);
     
@@ -58,29 +83,49 @@ export class UIHelper {
     );
     
     bg.on('pointerover', () => {
-      bg.clear();
-      bg.fillStyle(fillColor + 0x111111, 1);
-      bg.fillRoundedRect(-width / 2, -height / 2, width, height, 8);
-      bg.lineStyle(2, 0xc9a959, 1);
-      bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 8);
-      label.setColor('#c9a959');
+      this.drawButtonState(bg, width, height, hoverPalette);
+      label.setColor(hoverPalette.text);
+
+      scene.tweens.add({
+        targets: glow,
+        alpha: 1,
+        duration: 130,
+        ease: 'Sine.easeOut'
+      });
+
+      scene.tweens.add({
+        targets: container,
+        y: y - 2,
+        duration: 130,
+        ease: 'Sine.easeOut'
+      });
     });
     
     bg.on('pointerout', () => {
-      bg.clear();
-      bg.fillStyle(fillColor, 1);
-      bg.fillRoundedRect(-width / 2, -height / 2, width, height, 8);
-      bg.lineStyle(2, strokeColor, 1);
-      bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 8);
-      label.setColor(primary ? '#c9a959' : '#8b7355');
+      this.drawButtonState(bg, width, height, basePalette);
+      label.setColor(basePalette.text);
+
+      scene.tweens.add({
+        targets: glow,
+        alpha: 0,
+        duration: 130,
+        ease: 'Sine.easeOut'
+      });
+
+      scene.tweens.add({
+        targets: container,
+        y,
+        duration: 130,
+        ease: 'Sine.easeOut'
+      });
     });
     
     bg.on('pointerdown', () => {
       // Quick press animation
       scene.tweens.add({
         targets: container,
-        scaleX: 0.95,
-        scaleY: 0.95,
+        scaleX: 0.97,
+        scaleY: 0.97,
         duration: 50,
         yoyo: true,
         onComplete: onClick
@@ -259,15 +304,30 @@ export class UIHelper {
     
     // Background
     const bg = scene.add.graphics();
-    bg.fillStyle(0x2a1f1a, 1);
+    bg.fillStyle(0x000000, 0.35);
+    bg.fillRoundedRect(1, 2, width, height, height / 3);
+    bg.fillStyle(0x2a1f1a, 0.95);
     bg.fillRoundedRect(0, 0, width, height, height / 4);
+    bg.lineStyle(1, 0x8b7355, 0.5);
+    bg.strokeRoundedRect(0, 0, width, height, height / 4);
     container.add(bg);
     
     // Fill
     const fill = scene.add.graphics();
     const fillWidth = (value / maxValue) * (width - 4);
-    fill.fillStyle(color, 1);
+    fill.fillGradientStyle(
+      Phaser.Display.Color.ValueToColor(color).brighten(15).color,
+      Phaser.Display.Color.ValueToColor(color).brighten(15).color,
+      color,
+      color,
+      1,
+      1,
+      1,
+      1
+    );
     fill.fillRoundedRect(2, 2, Math.max(0, fillWidth), height - 4, (height - 4) / 4);
+    fill.fillStyle(0xffffff, 0.1);
+    fill.fillRoundedRect(2, 2, Math.max(0, fillWidth), Math.max(2, (height - 4) * 0.4), (height - 4) / 4);
     container.add(fill);
     
     return container;
@@ -286,16 +346,22 @@ export class UIHelper {
     const panel = scene.add.graphics();
     
     // Main fill
-    panel.fillStyle(0x2a1f1a, 0.95);
+    panel.fillStyle(0x000000, 0.3);
+    panel.fillRoundedRect(x + 3, y + 5, width, height, 10);
+
+    panel.fillGradientStyle(0x31241c, 0x31241c, 0x1f1712, 0x1f1712, 0.95, 0.95, 0.95, 0.95);
     panel.fillRoundedRect(x, y, width, height, 10);
     
     // Border
-    panel.lineStyle(2, 0x5a4a3a, 1);
+    panel.lineStyle(2, 0x7a613f, 0.95);
     panel.strokeRoundedRect(x, y, width, height, 10);
     
     // Inner border (decorative)
-    panel.lineStyle(1, 0x3a2a1a, 0.5);
+    panel.lineStyle(1, 0xa58554, 0.25);
     panel.strokeRoundedRect(x + 5, y + 5, width - 10, height - 10, 8);
+
+    panel.lineStyle(1, 0x000000, 0.35);
+    panel.strokeRoundedRect(x + 1, y + 1, width - 2, height - 2, 10);
     
     return panel;
   }
@@ -321,5 +387,69 @@ export class UIHelper {
     divider.fillCircle(x, y, 3);
     
     return divider;
+  }
+
+  private static getButtonPalette(primary: boolean, hovered: boolean): ButtonVisualPalette {
+    if (primary) {
+      return hovered
+        ? {
+          fillTop: 0x6d5433,
+          fillBottom: 0x4d3820,
+          strokeOuter: 0xe6c574,
+          strokeInner: 0xb88940,
+          text: '#f2d895',
+          glow: 0xdcb162
+        }
+        : {
+          fillTop: 0x5a4329,
+          fillBottom: 0x3f2d1c,
+          strokeOuter: 0xc9a959,
+          strokeInner: 0x8b6b34,
+          text: '#d4b978',
+          glow: 0xc9a959
+        };
+    }
+
+    return hovered
+      ? {
+        fillTop: 0x46362d,
+        fillBottom: 0x2f241e,
+        strokeOuter: 0xbaa067,
+        strokeInner: 0x7b6444,
+        text: '#c9a959',
+        glow: 0x9a7a4f
+      }
+      : {
+        fillTop: 0x3b2f29,
+        fillBottom: 0x291f1b,
+        strokeOuter: 0x6f5a46,
+        strokeInner: 0x45352a,
+        text: '#9d8464',
+        glow: 0x68533d
+      };
+  }
+
+  private static drawButtonState(
+    bg: Phaser.GameObjects.Graphics,
+    width: number,
+    height: number,
+    palette: ButtonVisualPalette
+  ): void {
+    bg.clear();
+    bg.fillGradientStyle(
+      palette.fillTop,
+      palette.fillTop,
+      palette.fillBottom,
+      palette.fillBottom,
+      1,
+      1,
+      1,
+      1
+    );
+    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 8);
+    bg.lineStyle(2, palette.strokeOuter, 1);
+    bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 8);
+    bg.lineStyle(1, palette.strokeInner, 0.9);
+    bg.strokeRoundedRect(-width / 2 + 2, -height / 2 + 2, width - 4, height - 4, 7);
   }
 }
