@@ -8,7 +8,8 @@ export type LetterType =
   | 'patron' 
   | 'rival' 
   | 'chaplain' 
-  | 'future_self';
+  | 'future_self'
+  | 'spymaster';
 
 export interface LetterTemplate {
   id: string;
@@ -446,6 +447,84 @@ export const LETTER_TYPES: LetterTemplate[] = [
         }
       }
     ]
+
+  },
+
+  // Letter to Spymaster - Intel and tactical leverage
+  {
+    id: 'letter_spymaster',
+    type: 'spymaster',
+    name: 'Letter to the Spymaster',
+    icon: '🕵️',
+    description: 'Trade rumors and coin for tactical intelligence.',
+    recipient: 'the city spymaster',
+
+    guaranteedEffects: [
+      { type: 'focus', value: 12, description: '+12 Starting Focus next fight' },
+      { type: 'letter_stamp', value: 1, description: '+1 Letter Stamp' }
+    ],
+
+    positiveChance: 0.5,
+    positiveEffect: {
+      type: 'enemy_debuff',
+      value: 20,
+      description: 'Scouted weakness! Enemy starts with -20% guard effectiveness'
+    },
+
+    negativeChance: 0.25,
+    negativeEffect: {
+      type: 'gold',
+      value: -30,
+      description: 'Informants charge extra hush money. -30 Gold'
+    },
+
+    letterSnippets: [
+      'Your agents were right. My next opponent always favors the left side.',
+      'I can pay in blood, coin, or favors. Name the price for insight.',
+      'Who trains with my rival? I need names before dawn.',
+      'The bookmakers move strangely. Tell me why and I will remember it.',
+      'Every fighter has a habit that gets them killed. Find theirs.',
+      'Send word through the usual baker. Burn this letter after reading.',
+      'I know someone in the stable talks. I need that tongue loosened.',
+      'One useful secret is worth more than ten sharpened swords.'
+    ],
+    closingLines: [
+      'In confidence, {name}',
+      'From the shadows, {name}',
+      'Quietly, {name}',
+      'No witnesses, {name}'
+    ],
+
+    milestoneRewards: [
+      {
+        count: 3,
+        reward: {
+          type: 'ability',
+          id: 'scouting_report',
+          name: 'Scouting Report',
+          description: 'Reveal enemy archetype and opening tendency before combat'
+        }
+      },
+      {
+        count: 7,
+        reward: {
+          type: 'perk_point',
+          id: 'network_of_eyes',
+          name: 'Network of Eyes',
+          description: '+1 Bloodline Point and +10% contract completion rewards'
+        }
+      },
+      {
+        count: 12,
+        reward: {
+          type: 'cosmetic',
+          id: 'inked_cipher',
+          name: 'Ciphered Ink',
+          description: 'Letters gain coded script and black-seal wax'
+        }
+      }
+    ]
+
   }
 ];
 

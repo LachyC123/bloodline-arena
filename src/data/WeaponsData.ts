@@ -973,6 +973,102 @@ export const WEAPONS_DATA: WeaponData[] = [
     sellPrice: 335,
     leagueMin: 'gold'
   }
+  ,
+  {
+    id: 'storm_chain',
+    name: 'Storm Chain',
+    type: 'flail',
+    rarity: 'epic',
+    icon: '⛓️',
+    damageMin: 15,
+    damageMax: 24,
+    lightStaminaCost: 16,
+    heavyStaminaCost: 32,
+    accuracyMod: -6,
+    critChanceMod: 12,
+    speedMod: -1,
+    effects: [
+      { type: 'guard_crush', chance: 0.45, value: 75, description: 'Rips through guarded stances' },
+      { type: 'momentum_gain', chance: 0.35, value: 2, description: 'Crowd surges with each crack' }
+    ],
+    damageDescription: 'Light: snapping arc. Heavy: thunderous wrap-around smash.',
+    lore: 'Forged with links taken from failed champions.',
+    price: 460,
+    sellPrice: 155,
+    leagueMin: 'gold'
+  },
+  {
+    id: 'widowmaker_flail',
+    name: 'Widowmaker Flail',
+    type: 'flail',
+    rarity: 'legendary',
+    icon: '⛓️',
+    damageMin: 20,
+    damageMax: 31,
+    lightStaminaCost: 18,
+    heavyStaminaCost: 36,
+    accuracyMod: -7,
+    critChanceMod: 14,
+    speedMod: -2,
+    effects: [
+      { type: 'guard_crush', chance: 0.6, value: 100, description: 'Completely bypasses guard' },
+      { type: 'bleed', chance: 0.35, value: 4, description: 'Barbed links tear deeply' },
+      { type: 'first_strike', chance: 0.3, value: 20, description: 'Explosive opening pressure' }
+    ],
+    damageDescription: 'Light: brutal wrist snap. Heavy: execution swing that wraps shields away.',
+    lore: 'Its chain is etched with names no one dares read aloud.',
+    price: 1050,
+    sellPrice: 350,
+    leagueMin: 'gold'
+  },
+  {
+    id: 'siege_breaker',
+    name: 'Siegebreaker Hammer',
+    type: 'hammer',
+    rarity: 'epic',
+    icon: '🔨',
+    damageMin: 21,
+    damageMax: 32,
+    lightStaminaCost: 23,
+    heavyStaminaCost: 46,
+    accuracyMod: -10,
+    critChanceMod: 6,
+    speedMod: -3,
+    effects: [
+      { type: 'armor_break', chance: 0.75, value: 5, description: 'Cracks plate and bone' },
+      { type: 'stun', chance: 0.35, value: 1, description: 'Concussive shockwave' }
+    ],
+    damageDescription: 'Light: crushing shove. Heavy: siege-class overhead impact.',
+    lore: 'Originally made to crack fortress gates.',
+    price: 520,
+    sellPrice: 175,
+    leagueMin: 'gold'
+  },
+  {
+    id: 'funeral_bell',
+    name: 'Funeral Bell',
+    type: 'hammer',
+    rarity: 'legendary',
+    icon: '🔨',
+    damageMin: 27,
+    damageMax: 42,
+    lightStaminaCost: 26,
+    heavyStaminaCost: 52,
+    accuracyMod: -12,
+    critChanceMod: 12,
+    speedMod: -5,
+    effects: [
+      { type: 'armor_break', chance: 1, value: 6, description: 'Guaranteed catastrophic armor break' },
+      { type: 'stun', chance: 0.55, value: 2, description: 'Ringing impact disorients badly' },
+      { type: 'momentum_gain', chance: 0.4, value: 3, description: 'Each hit terrifies the stands' }
+    ],
+    damageDescription: 'Light: crushing toll. Heavy: a bell-like slam that stops hearts.',
+    lore: 'When it rings, someone does not stand back up.',
+    price: 1200,
+    sellPrice: 400,
+    leagueMin: 'gold'
+  }
+
 ];
 
 // Helper functions

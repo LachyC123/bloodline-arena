@@ -166,6 +166,83 @@ export const BIOMES: Biome[] = [
       { type: 'passive', effect: 'Wounds heal 50% slower', value: -0.50 }
     ],
     visualTheme: 'desert'
+  },
+  {
+    id: 'biome_flooded_forum',
+    name: 'Flooded Forum',
+    icon: '🌊',
+    description: 'Waterlogged stone shifts footing and rewards precise strikes',
+    ambience: 'Shallow water ripples across cracked marble while spectators chant from above.',
+    mods: [
+      { stat: 'accuracy', value: 0.08, isPercent: true, target: 'both', description: '+8% Accuracy for all' },
+      { stat: 'speed', value: -2, target: 'both', description: '-2 Speed from heavy footing' }
+    ],
+    specialRules: [
+      { type: 'combat', effect: 'Stuns last 1 extra turn in knee-deep water', value: 1 },
+      { type: 'reward', effect: '+15% gold from spectacle bets', value: 0.15 }
+    ],
+    visualTheme: 'flooded'
+  },
+  {
+    id: 'biome_obsidian_ring',
+    name: 'Obsidian Ring',
+    icon: '🖤',
+    description: 'Heat and glassy shards punish reckless movement',
+    ambience: 'Volcanic glass gleams beneath torchlight. Every step threatens a cut.',
+    mods: [
+      { stat: 'bleedDamage', value: 0.15, isPercent: true, target: 'both', description: '+15% Bleed damage' },
+      { stat: 'dodge', value: -0.06, isPercent: true, target: 'both', description: '-6% Dodge (shard field)' }
+    ],
+    specialRules: [
+      { type: 'passive', effect: 'Critical misses apply 1 bleed stack to attacker', value: 1 }
+    ],
+    visualTheme: 'obsidian'
+  },
+  {
+    id: 'biome_whisper_catacombs',
+    name: 'Whispering Catacombs',
+    icon: '🕯️',
+    description: 'Fear gnaws at unsteady minds under the crypt lights',
+    ambience: 'Ancient bones line the walls, and murmurs seem to come from nowhere.',
+    mods: [
+      { stat: 'focus', value: -10, target: 'both', description: '-10 Starting Focus' },
+      { stat: 'resolve', value: 10, target: 'player', description: '+10 Resolve for the prepared' }
+    ],
+    specialRules: [
+      { type: 'combat', effect: 'First successful parry grants 15 focus', value: 15 }
+    ],
+    visualTheme: 'catacomb'
+  },
+  {
+    id: 'biome_sunforge_stage',
+    name: 'Sunforge Stage',
+    icon: '☀️',
+    description: 'Blazing lights empower aggression and drain patience',
+    ambience: 'Polished brass mirrors sunlight into a searing halo around the arena.',
+    mods: [
+      { stat: 'damage', value: 0.12, isPercent: true, target: 'both', description: '+12% Damage for all' },
+      { stat: 'staminaRegen', value: -1, target: 'both', description: '-1 Stamina regen (heat fatigue)' }
+    ],
+    specialRules: [
+      { type: 'reward', effect: '+20% Fame on dramatic victories', value: 0.20 }
+    ],
+    visualTheme: 'sunforge'
+  },
+  {
+    id: 'biome_hanging_bridge',
+    name: 'Hanging Bridge Arena',
+    icon: '🌉',
+    description: 'Narrow footing magnifies tempo and punishes defense turtles',
+    ambience: 'The fight takes place above a roaring ravine on chained planks.',
+    mods: [
+      { stat: 'speed', value: 3, target: 'both', description: '+3 Speed from constant repositioning' },
+      { stat: 'defense', value: -2, target: 'both', description: '-2 Defense (limited guard angles)' }
+    ],
+    specialRules: [
+      { type: 'combat', effect: 'Guard effectiveness reduced by 20%', value: -0.2 },
+      { type: 'reward', effect: '+10% gold from hazard pay', value: 0.10 }
+    ],
+    visualTheme: 'bridge'
   }
 ];
 

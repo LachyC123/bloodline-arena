@@ -120,6 +120,23 @@ export const RIVAL_ADAPTATIONS: RivalAdaptation[] = [
     statMods: { damage: 0.10, attackSpeed: 0.10 }
   },
   {
+    id: 'adapt_combo_breaker',
+    name: 'Combo Breaker',
+    description: 'Punishes reckless aggression with interrupts',
+    counterTo: 'aggressiveness',
+    threshold: 0.65,
+    statMods: { parryWindow: 0.15, counterChance: 0.2 },
+    specialAbility: 'interrupt_strike'
+  },
+  {
+    id: 'adapt_iron_lungs',
+    name: 'Iron Lungs',
+    description: 'Outlasts fighters who overcommit on tempo',
+    counterTo: 'aggressiveness',
+    threshold: 0.8,
+    statMods: { staminaRegen: 3, defense: 4 }
+  },
+  {
     id: 'adapt_wound_master',
     name: 'Wound Master',
     description: 'Inflicts wounds that reduce healing',
@@ -149,6 +166,18 @@ export const RIVAL_TEMPLATES = [
     name: 'Silvara the Swift',
     baseStats: { hp: 80, damage: 12, defense: 5, speed: 15 },
     personality: 'A nimble fencer who studies your technique'
+  },
+  {
+    id: 'rival_howl',
+    name: 'Mara of the Howling Gate',
+    baseStats: { hp: 115, damage: 14, defense: 9, speed: 11 },
+    personality: 'A relentless tactician who weaponizes crowd pressure'
+  },
+  {
+    id: 'rival_scholar',
+    name: 'Quint the Ledgered',
+    baseStats: { hp: 95, damage: 13, defense: 7, speed: 13 },
+    personality: 'A cold analyst who studies your previous turns between rounds'
   }
 ];
 

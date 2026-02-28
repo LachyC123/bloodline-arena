@@ -710,6 +710,89 @@ export const ARMOR_DATA: ArmorData[] = [
     sellPrice: 75,
     leagueMin: 'silver'
   }
+  ,
+  {
+    id: 'sunsteel_cuirass',
+    name: 'Sunsteel Cuirass',
+    slot: 'body',
+    rarity: 'epic',
+    icon: '🦺',
+    defense: 18,
+    staminaRegenMod: -3,
+    dodgeMod: -6,
+    speedMod: -1,
+    perks: [
+      { type: 'crit_resist', value: 25, description: '25% crit damage reduction' },
+      { type: 'momentum_boost', value: 20, description: '+20% momentum gain from crowd cheers' }
+    ],
+    description: 'Reflective plate that turns sunlight into intimidation.',
+    lore: 'Issued only to arena wardens and champions.',
+    price: 420,
+    sellPrice: 140,
+    leagueMin: 'gold'
+  },
+  {
+    id: 'graveguard_helm',
+    name: 'Graveguard Helm',
+    slot: 'helmet',
+    rarity: 'rare',
+    icon: '⛑️',
+    defense: 9,
+    staminaRegenMod: -1,
+    dodgeMod: -2,
+    speedMod: 0,
+    perks: [
+      { type: 'stun_resist', value: 30, description: '30% stun resistance' },
+      { type: 'focus_boost', value: 12, description: '+12 starting focus' }
+    ],
+    description: 'Visor-lined helm that dulls shock and panic.',
+    lore: 'Recovered from catacomb sentries beneath the old pits.',
+    price: 240,
+    sellPrice: 80,
+    leagueMin: 'silver'
+  },
+  {
+    id: 'hooked_bulwark',
+    name: 'Hooked Bulwark',
+    slot: 'shield',
+    rarity: 'epic',
+    icon: '🛡️',
+    defense: 13,
+    staminaRegenMod: -3,
+    dodgeMod: -6,
+    speedMod: -1,
+    perks: [
+      { type: 'counter_damage', value: 30, description: '+30% counter damage' },
+      { type: 'thorns', value: 6, description: 'Deal 6 damage when blocking' },
+      { type: 'first_strike_resist', value: 40, description: '40% first strike resistance' }
+    ],
+    description: 'Hooked edge catches weapons and yanks openings wide.',
+    lore: 'A duelist-killer favored by veteran pit captains.',
+    price: 410,
+    sellPrice: 138,
+    leagueMin: 'gold'
+  },
+  {
+    id: 'silksteel_jack',
+    name: 'Silksteel Jack',
+    slot: 'body',
+    rarity: 'rare',
+    icon: '🦺',
+    defense: 11,
+    staminaRegenMod: 1,
+    dodgeMod: 5,
+    speedMod: 1,
+    perks: [
+      { type: 'dodge_boost', value: 8, description: '+8% dodge chance' },
+      { type: 'bleed_resist', value: 20, description: '20% bleed resistance' }
+    ],
+    description: 'Layered silk and chain built for mobile fighters.',
+    lore: 'Expensive, elegant, and deceptively tough.',
+    price: 260,
+    sellPrice: 88,
+    leagueMin: 'silver'
+  }
+
 ];
 
 // Helper functions

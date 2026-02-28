@@ -100,6 +100,33 @@ export const RELICS_DATA: Relic[] = [
     passiveEffect: 'hype_bonus_15',
     lore: 'They love you. For now.'
   },
+  {
+    id: 'chalk_prayer',
+    name: 'Chalk Prayer',
+    description: '+8 Accuracy, +10 Resolve',
+    rarity: 'common',
+    icon: '🪨',
+    auraColor: '#d3d3d3',
+    particleType: 'none',
+    statModifiers: { accuracy: 8, resolve: 10 },
+    lore: 'A whispered ritual drawn before every bout.'
+  },
+  {
+    id: 'camp_kettle',
+    name: 'Camp Kettle',
+    description: '+10 Max HP, recover 2 HP on fight start',
+    rarity: 'common',
+    icon: '🍲',
+    auraColor: '#cd853f',
+    particleType: 'none',
+    statModifiers: { maxHP: 10 },
+    triggerEffect: {
+      condition: 'on_fight_start',
+      effect: 'heal',
+      value: 2
+    },
+    lore: 'Warm broth and stubborn survival.'
+  },
   
   // Uncommon Relics
   {
@@ -193,6 +220,40 @@ export const RELICS_DATA: Relic[] = [
     statModifiers: { maxStamina: 20 },
     passiveEffect: 'stamina_regen_20',
     lore: 'Hold everything together.'
+  },
+  {
+    id: 'duelists_thread',
+    name: 'Duelist\'s Thread',
+    description: '+12 Speed, first dodge each fight grants 10 Focus',
+    rarity: 'uncommon',
+    icon: '🧵',
+    auraColor: '#7fffd4',
+    particleType: 'sparkle',
+    statModifiers: { speed: 12 },
+    triggerEffect: {
+      condition: 'on_dodge',
+      effect: 'focus_gain',
+      value: 10,
+      chance: 1
+    },
+    lore: 'A silk thread tied to luck and timing.'
+  },
+  {
+    id: 'salted_talisman',
+    name: 'Salted Talisman',
+    description: '+20% bleed resistance and cure 1 debuff on parry',
+    rarity: 'uncommon',
+    icon: '🧂',
+    auraColor: '#f8f8ff',
+    particleType: 'holy',
+    passiveEffect: 'bleed_resist_20',
+    triggerEffect: {
+      condition: 'on_parry',
+      effect: 'status_cure',
+      value: 1,
+      chance: 0.35
+    },
+    lore: 'Temple salt packed in a stitched leather pouch.'
   },
   
   // Rare Relics
@@ -296,6 +357,37 @@ export const RELICS_DATA: Relic[] = [
     },
     lore: 'Call down the thunder.'
   },
+  {
+    id: 'warscribe_tablet',
+    name: 'Warscribe Tablet',
+    description: 'Contracts grant +25% rewards and +10 Focus at fight start',
+    rarity: 'rare',
+    icon: '📘',
+    auraColor: '#4169e1',
+    particleType: 'sparkle',
+    passiveEffect: 'contract_reward_bonus_25',
+    triggerEffect: {
+      condition: 'on_fight_start',
+      effect: 'focus_gain',
+      value: 10
+    },
+    lore: 'Names and debts etched in iron-ink.'
+  },
+  {
+    id: 'furnace_heart',
+    name: 'Furnace Heart',
+    description: 'Gain 6% stacking damage each turn (max 30%)',
+    rarity: 'rare',
+    icon: '🔥',
+    auraColor: '#ff4500',
+    particleType: 'flame',
+    triggerEffect: {
+      condition: 'on_turn_start',
+      effect: 'ramping_damage',
+      value: 6
+    },
+    lore: 'It beats faster the longer blood is spilled.'
+  },
   
   // Legendary Relics
   {
@@ -350,6 +442,32 @@ export const RELICS_DATA: Relic[] = [
     particleType: 'shadow',
     passiveEffect: 'stamina_as_hp',
     lore: 'Death cannot claim the determined.'
+  },
+  {
+    id: 'timebroken_hourglass',
+    name: 'Timebroken Hourglass',
+    description: 'Every third turn repeats your previous action at 50% power',
+    rarity: 'legendary',
+    icon: '⏳',
+    auraColor: '#e6e6fa',
+    particleType: 'sparkle',
+    passiveEffect: 'echo_action_third_turn',
+    lore: 'Cracked glass where lost moments still swirl.'
+  },
+  {
+    id: 'throne_chain',
+    name: 'Chain of the First Throne',
+    description: '+20 all core stats while below 40% HP',
+    rarity: 'legendary',
+    icon: '⛓️',
+    auraColor: '#b22222',
+    particleType: 'blood',
+    triggerEffect: {
+      condition: 'on_low_hp',
+      effect: 'all_stats_boost',
+      value: 20
+    },
+    lore: 'A king\'s broken chain reforged for survival.'
   },
   {
     id: 'arena_heart',
