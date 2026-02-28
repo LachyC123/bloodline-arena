@@ -71,6 +71,30 @@ export const CONTRACTS: Contract[] = [
     rewards: [{ type: 'gold', value: 20 }],
     tags: ['defense', 'dodge']
   },
+  {
+    id: 'contract_opening_strike',
+    name: 'First Blood',
+    icon: '🗡️',
+    description: 'Land the first hit of the fight',
+    objective: 'Hit the enemy before they hit you',
+    difficulty: 1,
+    trackingType: 'boolean',
+    target: 1,
+    rewards: [{ type: 'gold', value: 20 }],
+    tags: ['offense', 'tempo']
+  },
+  {
+    id: 'contract_stamina_management',
+    name: 'Measured Pace',
+    icon: '🧘',
+    description: 'Keep stamina discipline',
+    objective: 'Finish with at least 30 stamina remaining',
+    difficulty: 1,
+    trackingType: 'health',
+    target: 30,
+    rewards: [{ type: 'gold', value: 18 }],
+    tags: ['resource', 'basic']
+  },
   
   // ===== MEDIUM CONTRACTS (2 stars) =====
   {
@@ -163,6 +187,36 @@ export const CONTRACTS: Contract[] = [
     ],
     tags: ['offense', 'bleed']
   },
+  {
+    id: 'contract_break_guard',
+    name: 'Shieldbreaker Writ',
+    icon: '🧱',
+    description: 'Crack through defenses repeatedly',
+    objective: 'Trigger guard crush or armor break 3 times',
+    difficulty: 2,
+    trackingType: 'count',
+    target: 3,
+    rewards: [
+      { type: 'gold', value: 32 },
+      { type: 'lootTier', value: 1 }
+    ],
+    tags: ['offense', 'armor_break']
+  },
+  {
+    id: 'contract_adaptable',
+    name: 'Versatile Fighter',
+    icon: '🎛️',
+    description: 'Show mastery in multiple disciplines',
+    objective: 'Use light attack, heavy attack, guard, and dodge at least once each',
+    difficulty: 2,
+    trackingType: 'count',
+    target: 4,
+    rewards: [
+      { type: 'gold', value: 38 },
+      { type: 'signatureXP', value: 6 }
+    ],
+    tags: ['skill', 'balanced']
+  },
   
   // ===== HARD CONTRACTS (3 stars) =====
   {
@@ -241,6 +295,38 @@ export const CONTRACTS: Contract[] = [
       { type: 'mastery', value: 2 }
     ],
     tags: ['momentum', 'skill', 'hard']
+  },
+  {
+    id: 'contract_finale',
+    name: 'Execution Clause',
+    icon: '☠️',
+    description: 'Finish with overwhelming force',
+    objective: 'Defeat the enemy with a heavy attack while above 50% HP',
+    difficulty: 3,
+    trackingType: 'boolean',
+    target: 1,
+    rewards: [
+      { type: 'gold', value: 90 },
+      { type: 'embers', value: 2 },
+      { type: 'lootTier', value: 1 }
+    ],
+    tags: ['offense', 'hard', 'finisher']
+  },
+  {
+    id: 'contract_iron_nerves',
+    name: 'Iron Nerves',
+    icon: '🧠',
+    description: 'Stay composed under pressure',
+    objective: 'Win after dropping below 25% HP without using healing',
+    difficulty: 3,
+    trackingType: 'boolean',
+    target: 1,
+    rewards: [
+      { type: 'gold', value: 85 },
+      { type: 'mastery', value: 1 },
+      { type: 'signatureXP', value: 12 }
+    ],
+    tags: ['risk', 'hard', 'skill']
   }
 ];
 

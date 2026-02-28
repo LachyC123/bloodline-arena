@@ -514,6 +514,112 @@ export const VIGNETTES_DATA: Vignette[] = [
       }
     ]
   }
+,
+  {
+    id: 'retired_gladiator',
+    title: 'The Retired Blade',
+    description: 'An old champion with a ruined knee offers one lesson before dawn.',
+    category: 'camp',
+    requirements: { minWeek: 4 },
+    choices: [
+      {
+        id: 'pay_lesson',
+        text: 'Pay for private instruction',
+        effects: { gold: -35, trust: 6, stamina: 10 },
+        resultText: 'Every correction is sharp and painful. You leave better than you arrived.'
+      },
+      {
+        id: 'trade_story',
+        text: 'Swap stories and listen',
+        effects: { trust: 7, fame: 4 },
+        resultText: 'The old fighter laughs at your mistakes and your potential with equal warmth.'
+      },
+      {
+        id: 'walk_away',
+        text: 'Decline and keep schedule',
+        effects: { trust: -2 },
+        resultText: 'Time is saved, but a rare chance at wisdom passes by.'
+      }
+    ]
+  },
+  {
+    id: 'fixer_note',
+    title: 'A Fixer\'s Note',
+    description: 'A bookmaker offers coin if tonight\'s match lasts long enough to sway odds.',
+    category: 'offer',
+    choices: [
+      {
+        id: 'take_deal',
+        text: 'Take the deal',
+        effects: { gold: 80, trust: -12, reputation: -6 },
+        resultText: 'The purse is heavy. Your fighter\'s silence is heavier.'
+      },
+      {
+        id: 'burn_note',
+        text: 'Burn the note publicly',
+        effects: { fame: 8, trust: 8 },
+        resultText: 'Spectators cheer your defiance. The fixer vanishes into the crowd.'
+      },
+      {
+        id: 'stall',
+        text: 'Pretend to consider and gather intel',
+        effects: { gold: 15, trust: 2 },
+        resultText: 'You learn names, routes, and prices. Useful knowledge with minor risk.'
+      }
+    ]
+  },
+  {
+    id: 'memorial_wall',
+    title: 'The Memorial Wall',
+    description: 'Fresh names are carved into stone beside old legends. Your fighter stops walking.',
+    category: 'letter',
+    choices: [
+      {
+        id: 'write_name',
+        text: 'Write a promise beneath the names',
+        effects: { trust: 9, stamina: -2 },
+        resultText: 'The promise is simple: survive, remember, and carry them forward.'
+      },
+      {
+        id: 'silent_prayer',
+        text: 'Stand in silence',
+        effects: { trust: 5, hp: 5 },
+        resultText: 'No words needed. The moment settles your breathing and your heart.'
+      },
+      {
+        id: 'harden',
+        text: 'Tell them to harden up',
+        effects: { stamina: 10, trust: -6 },
+        resultText: 'They nod and obey, but their eyes go distant.'
+      }
+    ]
+  },
+  {
+    id: 'street_children',
+    title: 'Kids with Wooden Swords',
+    description: 'Street children mimic your fighter\'s signature move in an alley.',
+    category: 'event',
+    choices: [
+      {
+        id: 'teach',
+        text: 'Teach them proper footwork',
+        effects: { trust: 7, fame: 6, stamina: -5 },
+        resultText: 'Their laughter follows you for blocks. You just gained devoted tiny fans.'
+      },
+      {
+        id: 'gift_coin',
+        text: 'Give coin and move on',
+        effects: { gold: -20, trust: 3 },
+        resultText: 'A practical kindness. The children bow dramatically as you leave.'
+      },
+      {
+        id: 'ignore',
+        text: 'Ignore them and head to camp',
+        effects: { trust: -2 },
+        resultText: 'Discipline is maintained, but the mood turns colder.'
+      }
+    ]
+  }
 ];
 
 // Last words data
@@ -537,7 +643,12 @@ export const LAST_WORDS_DATA: string[] = [
   "Avenge... if you can...",
   "Mother...",
   "The light... it's fading...",
-  "I'm not afraid..."
+  "I'm not afraid...",
+  "Keep the campfire lit for me...",
+  "Tell the rookies to keep their guard high...",
+  "No chains in the next life...",
+  "I can hear the crowd one last time...",
+  "Take my blade to someone worthy..."
 ];
 
 // Promise data
@@ -569,6 +680,13 @@ export const PROMISES_DATA = [
     description: 'Promise to defeat every rival. Bonus damage to rivals, they seek you out.',
     effect: '+25% damage to rivals, rivals appear more often',
     mechanicBonus: { rivalDamageBonus: 0.25, rivalFrequency: 2 }
+  },
+  {
+    id: 'oathbreaker',
+    name: 'No one owns our fate',
+    description: 'Promise to reject fixers and corruption. Harder economy, stronger identity.',
+    effect: '-15% shop discounts removed, +35% trust/fame from honorable choices',
+    mechanicBonus: { honorRewardBonus: 0.35, noCorruptionDiscounts: true }
   },
   {
     id: 'legacy',

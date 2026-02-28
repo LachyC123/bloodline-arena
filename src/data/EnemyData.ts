@@ -29,7 +29,14 @@ export const ENEMY_NAMES = [
   { first: 'Gorm', last: 'the Grim' },
   { first: 'Fenris', last: 'Wolfjaw' },
   { first: 'Balthus', last: 'the Beast' },
-  { first: 'Corvus', last: 'Ravenwing' }
+  { first: 'Corvus', last: 'Ravenwing' },
+  { first: 'Octavia', last: 'Ashveil' },
+  { first: 'Darius', last: 'Chainborn' },
+  { first: 'Nyra', last: 'Gloamheart' },
+  { first: 'Severin', last: 'Gravebrand' },
+  { first: 'Talia', last: 'Sunscar' },
+  { first: 'Ivar', last: 'Deepwound' },
+  { first: 'Cassian', last: 'Ironchant' }
 ];
 
 // Enemy archetypes
@@ -174,6 +181,46 @@ export const ENEMY_ARCHETYPES: EnemyArchetype[] = [
     ]
   },
   {
+    id: 'pit_alchemist',
+    name: 'Toxic Savant',
+    title: 'The Alchemist',
+    aiType: 'trickster',
+    statMultipliers: {
+      maxHP: 0.95,
+      attack: 1.15,
+      speed: 1.05,
+      accuracy: 1.1
+    },
+    specialAbility: 'Attacks have a high chance to apply poison or bleed',
+    flavorText: 'Uses brews, fumes, and dirty tricks to grind opponents down.',
+    taunts: [
+      "Breathe deep. It gets worse.",
+      "I brought enough poison for both of us.",
+      "The pain arrives in waves.",
+      "You can taste copper already, can't you?"
+    ]
+  },
+  {
+    id: 'chain_warden',
+    name: 'Chain Warden',
+    title: 'The Warden',
+    aiType: 'defensive',
+    statMultipliers: {
+      maxHP: 1.25,
+      defense: 1.3,
+      speed: 0.85,
+      accuracy: 1.05
+    },
+    specialAbility: 'Guarded stance reflects chip damage while blocking',
+    flavorText: 'A prison enforcer turned pit fighter, patient and merciless.',
+    taunts: [
+      "I've broken stronger than you.",
+      "Every chain has a weakest link.",
+      "Fight all you like. You're still caged.",
+      "I decide when this ends."
+    ]
+  },
+  {
     id: 'executioner',
     name: 'Final Blow',
     title: 'The Executioner',
@@ -263,6 +310,28 @@ export const CHAMPION_ENEMIES = [
     ]
   },
   {
+    id: 'ashen_champion',
+    name: 'Ilyra Embercrown',
+    title: 'Ashen Champion',
+    league: 'gold',
+    aiType: 'aggressive' as EnemyAIType,
+    statMultipliers: {
+      maxHP: 1.75,
+      attack: 1.7,
+      defense: 1.35,
+      speed: 1.35,
+      maxFocus: 1.2
+    },
+    specialAbility: 'Combustion Rhythm: every third hit ignites bonus damage',
+    flavorText: 'A former stage idol who turned pyromaniac duelist.',
+    taunts: [
+      "Burn bright or burn out.",
+      "I can hear the crowd crackle.",
+      "You'll remember this heat.",
+      "Ashes are all that remain."
+    ]
+  },
+  {
     id: 'grand_champion',
     name: 'The Nameless One',
     title: 'Grand Champion',
@@ -323,6 +392,24 @@ export const RIVAL_TEMPLATES = [
       "Well fought. Truly.",
       "I underestimated you.",
       "The better fighter won today."
+    ]
+  },
+  {
+    personality: 'calculating',
+    greetings: [
+      "I brought a notebook. You're very educational.",
+      "I mapped your habits. You're right on schedule.",
+      "Try something surprising this time."
+    ],
+    victories: [
+      "A predictable ending.",
+      "You made exactly the mistake I needed.",
+      "Preparation beats passion."
+    ],
+    defeats: [
+      "Interesting. I'll update the model.",
+      "That line of play was new. Respect.",
+      "You bought yourself one rematch."
     ]
   },
   {
